@@ -30,6 +30,8 @@ def RMSE(true_ranks, predicted_ranks):
     :param predicted_ranks: the model predicted ranking.
     :return:
     """
+    acc = sum(list(map(lambda x, y: abs(x-y)<1, true_ranks, predicted_ranks)))/len(true_ranks)
+    print("acc:{}".format(acc))
     return mean_squared_error(true_ranks, predicted_ranks, squared=False)
     # print(true_ranks, predicted_ranks)
 
@@ -80,8 +82,8 @@ class BaseSVDModel:
     def correction(self, error, user_id, item_id):
         self.BU[user_id] = self.BU[user_id] + self.lamda * (error - self.gamma * self.BU[user_id])
         self.BI[item_id] = self.BI[item_id] + self.lamda * (error - self.gamma * self.BI[item_id])
-        self.P[user_id] = self.P[user_id] + self.lamda * (error - self.gamma * self.P[user_id])
-        self.Q[item_id] = self.Q[item_id] + self.lamda * (error - self.gamma * self.Q[item_id])
+        self.Q[item_id] = self.Q[item_id] + self.lamda * (error * self.P[user_id] - self.gamma * self.Q[item_id])
+        self.P[user_id] = self.P[user_id] + self.lamda * (error * self.Q[item_id] - self.gamma * self.P[user_id])
 
 
 
@@ -137,7 +139,7 @@ def split_and_save_train_validation(train_path, train_split_path, valid_split_pa
 
 
 
-def TrainBaseModel(latent_features_size, train_data_path, max_ephocs = 5):
+def TrainBaseModel(latent_features_size, train_data_path, max_ephocs = 500):
     """
     Implement of the basic model described in Recommender Systems Handbook, chapter 3, section 3.3
     :param latent_features_size: number of features for the model.
