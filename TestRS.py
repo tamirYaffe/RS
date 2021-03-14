@@ -5,9 +5,9 @@ import RecommenderSystem
 class TestRS(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        file_path = "Data/userTrainDataSmall.csv"
+        cls.train_data_gen = RecommenderSystem.load(file_path)
         print("setUpClass")
-        file_path = ""
-        cls.train_data = RecommenderSystem.load(file_path)
 
     def test_something(self):
         self.assertEqual(True, True)

@@ -1,12 +1,21 @@
+import csv
+
 
 def load(filepath):
     """
     Load the csv data files into a structure of our choice dataframe or matrix.
     :param filepath: path for the csv file(should not be local).
-    :return: data structure of the loaded file.
+    :return: a generator for the data structure of the loaded file.
     """
-    print(filepath)
-    pass
+    # print(filepath)
+    with open(filepath, newline='') as org_file:
+        l_idx = 0
+        reader = csv.reader(org_file)
+        for row_ in reader:
+            if l_idx != 0:
+                yield row_
+            l_idx += 1
+
 
 
 def RMSE(true_ranks, predicted_ranks):
