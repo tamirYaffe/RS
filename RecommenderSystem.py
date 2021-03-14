@@ -1,4 +1,6 @@
 import csv
+import sklearn as skl
+from sklearn.metrics import mean_squared_error
 
 
 def load(filepath):
@@ -25,8 +27,9 @@ def RMSE(true_ranks, predicted_ranks):
     :param predicted_ranks: the model predicted ranking.
     :return:
     """
-    print(true_ranks, predicted_ranks)
-    pass
+    return mean_squared_error(true_ranks, predicted_ranks, squared=False)
+    # print(true_ranks, predicted_ranks)
+
 
 
 def accuracyEval(true_ranks, predicted_ranks):
