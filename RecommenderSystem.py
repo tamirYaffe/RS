@@ -1,9 +1,7 @@
 import os
 import numpy as np
 import csv
-import sklearn as skl
 from sklearn.metrics import mean_squared_error
-from sklearn.model_selection import train_test_split
 
 
 def load(filepath):
@@ -13,8 +11,8 @@ def load(filepath):
     :return: a generator for the data structure of the loaded file.
     """
     # print(filepath)
-    def load_gen(filepath):
-        with open(filepath, newline='') as org_file:
+    def load_gen(path):
+        with open(path, newline='') as org_file:
             l_idx = 0
             reader = csv.reader(org_file)
             for row_ in reader:
@@ -36,7 +34,6 @@ def RMSE(true_ranks, predicted_ranks):
     # print(true_ranks, predicted_ranks)
 
 
-
 def accuracyEval(true_ranks, predicted_ranks):
     """
     Calculate the ??? for the ranking.
@@ -53,6 +50,7 @@ def accuracyEval(true_ranks, predicted_ranks):
 def PredictRating(model, data_to_predict):
     print(model, data_to_predict)
     pass
+
 
 class BaseSVDModel:
     def __init__(self, latent_features_size, user_size, items_size, ranking_mean):
@@ -74,6 +72,7 @@ class BaseSVDModel:
     def predict(self, user_id, item_id):
         pass
 
+
 def get_sizes(path_to_training):
     """
     :param path_to_training: full path to training file
@@ -85,14 +84,14 @@ def get_sizes(path_to_training):
     rankings_cnt = 0
     business_id = {}
     user_id = {}
-    while single_record != None:
+    while single_record is not None:
         user_id[single_record[1]] = 1
         business_id[single_record[2]] = 1
         ranking_sum += float(single_record[3])
         rankings_cnt += 1
         try:
             single_record = next(generator)
-        except StopIteration as e:
+        except StopIteration:
             break
 
     return len(business_id.keys()), len(user_id.keys()), ranking_sum/rankings_cnt
