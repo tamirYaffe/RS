@@ -53,27 +53,39 @@ def PredictRating(model, data_to_predict):
 
 
 class BaseSVDModel:
-    def __init__(self, latent_features_size, user_size, items_size, ranking_mean):
+    def __init__(self, latent_features_size, users_ids, items_ids, ranking_mean):
         self.latent_features_size = latent_features_size
-        self.user_size = user_size
-        self.item_size = items_size
+        self.user_size = len(users_ids)
+        self.item_size = len(items_ids)
 
-        self._Q = np.random.rand((self.item_size, self.latent_features_size))
-        self.BI = np.random.rand((self.item_size, self.latent_features_size))
+        self.Q = {key: np.random.rand((latent_features_size)) for key in items_ids}
+        self.BI = self.BU = {key: np.random.rand((1)) for key in items_ids}
 
-        self._P = np.random.rand((self.user_size, self.latent_features_size))
-        self.BU = np.random.rand((self.user_size, self.latent_features_size))
+        self.P = {key: np.random.rand((latent_features_size)) for key in users_ids}
+        self.BU = {key: np.random.rand((1)) for key in users_ids}
 
         self.MU = ranking_mean
 
-        self.gamma = 0.005
-        self.lamda = 0.02
+        self.lamda = 0.005
+        self.gamma = 0.02
 
     def predict(self, user_id, item_id):
-        pass
+        user_latent_vec = self.P[user_id]
+        item_latent_vec = self.Q[item_id]
+        item_latent_vec = item_latent_vec.transpose()
+        temp_res = np.dot(user_latent_vec, item_latent_vec)
+        pred_val = self.MU + self.BI[item_id] + self.BU[user_id] + temp_res
+        return pred_val[0]
+
+    def correction(self, error, user_id, item_id):
+        self.BU[user_id] = self.BU[user_id] + self.lamda * (error - self.gamma * self.BU[user_id])
+        self.BI[item_id] = self.BI[item_id] + self.lamda * (error - self.gamma * self.BI[item_id])
+        self.P[user_id] = self.P[user_id] + self.lamda * (error - self.gamma * self.P[user_id])
+        self.Q[item_id] = self.Q[item_id] + self.lamda * (error - self.gamma * self.Q[item_id])
 
 
-def get_sizes(path_to_training):
+
+def get_unique_users_and_items(path_to_training):
     """
     :param path_to_training: full path to training file
     :return: number of unique items, number of unique users, the mean ranking
@@ -94,7 +106,7 @@ def get_sizes(path_to_training):
         except StopIteration:
             break
 
-    return len(business_id.keys()), len(user_id.keys()), ranking_sum/rankings_cnt
+    return list(business_id.keys()), list(user_id.keys()), ranking_sum/rankings_cnt
 
 
 def split_and_save_train_validation(train_path, train_split_path, valid_split_path, validation_percent=0.3):
@@ -125,7 +137,7 @@ def split_and_save_train_validation(train_path, train_split_path, valid_split_pa
 
 
 
-def TrainBaseModel(latent_features_size, train_data_path):
+def TrainBaseModel(latent_features_size, train_data_path, max_ephocs = 5):
     """
     Implement of the basic model described in Recommender Systems Handbook, chapter 3, section 3.3
     :param latent_features_size: number of features for the model.
@@ -134,7 +146,7 @@ def TrainBaseModel(latent_features_size, train_data_path):
     """
 
     # print(latent_features_size, len(train_data_path))
-    items_cnt, users_cnt, ranking_mean = get_sizes(train_data_path)
+    items_ids, users_ids, ranking_mean = get_unique_users_and_items(train_data_path)
     model = {}
 
     # split train_data into train and validation.
@@ -146,14 +158,49 @@ def TrainBaseModel(latent_features_size, train_data_path):
                                     validation_percent=0.3)
 
     # randomly initialize U, b_u, b_i, p_u, q_i.
-    model = BaseSVDModel(latent_features_size, user_size=users_cnt, items_size=items_cnt, ranking_mean=ranking_mean)
+    model = BaseSVDModel(latent_features_size, users_ids=users_ids, items_ids=items_ids, ranking_mean=ranking_mean)
 
-    # todo: iterate over the ranking in train_data and for each:
-    #       1. calculate the error E_ui.
-    #       2. update U, b_u, b_i, p_u, q_i.
+    curr_rmse = float('inf')
+    curr_epoch = 0
+
+    while curr_epoch <= max_ephocs:
+        generator = load(train_split_path)
+        single_record = next(generator)
+        while single_record != None:
+            curr_user_id = single_record[1]
+            curr_item_id = single_record[2]
+            curr_rank = float(single_record[3])
+            curr_prediction = model.predict(curr_user_id, curr_item_id)
+            error = curr_rank - curr_prediction
+            model.correction(error=error, user_id=curr_user_id, item_id=curr_item_id)
+            try:
+                single_record = next(generator)
+            except StopIteration as e:
+                break
 
 
-    # todo: calculate RMSE over the validation, stop when is larger from prev iteration.
+        # calculate RMSE over the validation, stop when is larger from prev iteration.
+        generator = load(valid_split_path)
+        single_record = next(generator)
+        predicted_rankings = []
+        true_rankings = []
+        while single_record != None:
+            curr_user_id = single_record[1]
+            curr_item_id = single_record[2]
+            curr_rank = float(single_record[3])
+            true_rankings.append(curr_rank)
+            predicted_rankings.append(model.predict(user_id=curr_user_id, item_id=curr_item_id))
+            try:
+                single_record = next(generator)
+            except StopIteration as e:
+                break
+
+        temp_rmse = RMSE(true_ranks=true_rankings, predicted_ranks=predicted_rankings)
+        print("Epoch #: {}, RMSE: {}".format(curr_epoch, temp_rmse))
+        if temp_rmse > curr_rmse:
+            break
+        curr_rmse = temp_rmse
+        curr_epoch += 1
     # todo: improve RMSE by updating γ and λ.(???)
     return model
 
@@ -175,10 +222,12 @@ def TrainHybridModel():
 
 if __name__ == '__main__':
     train_data_path = "Data/userTrainDataSmall.csv"
-    train_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['train_split.csv'])
-    valid_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['valid_split.csv'])
-    split_and_save_train_validation(train_data_path,
-                                    train_split_path=train_split_path,
-                                    valid_split_path=valid_split_path,
-                                    validation_percent=0.3)
+    # train_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['train_split.csv'])
+    # valid_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['valid_split.csv'])
+    # split_and_save_train_validation(train_data_path,
+    #                                 train_split_path=train_split_path,
+    #                                 valid_split_path=valid_split_path,
+    #                                 validation_percent=0.3)
+    TrainBaseModel(latent_features_size=3, train_data_path=train_data_path)
+
 
