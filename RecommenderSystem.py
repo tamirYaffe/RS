@@ -68,8 +68,8 @@ class BaseSVDModel:
 
         self.MU = ranking_mean
 
-        self.lamda = 0.005
-        self.gamma = 0.02
+        self.lamda = 0.05
+        self.gamma = 0.01
 
     def predict(self, user_id, item_id):
         user_latent_vec = self.P[user_id]
