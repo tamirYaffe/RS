@@ -5,6 +5,7 @@ import numpy as np
 import csv
 from sklearn.metrics import mean_squared_error
 
+np.random.seed(42)
 
 def load(filepath):
     """
@@ -66,6 +67,7 @@ class ABSModelInterface(ABC):
 
 class BaseSVDModel(ABSModelInterface):
     def __init__(self, latent_features_size, users_ids, items_ids, ranking_mean, lamda=0.005, gamma=0.02):
+        self.error_threshold = 0.01
         self.latent_features_size = latent_features_size
         self.user_size = len(users_ids)
         self.item_size = len(items_ids)
@@ -90,11 +92,12 @@ class BaseSVDModel(ABSModelInterface):
         return pred_val[0]
 
     def correction(self, error, user_id, item_id):
+        if abs(error) < self.error_threshold:
+            return
         self.BU[user_id] = self.BU[user_id] + self.lamda * (error - self.gamma * self.BU[user_id])
         self.BI[item_id] = self.BI[item_id] + self.lamda * (error - self.gamma * self.BI[item_id])
         self.Q[item_id] = self.Q[item_id] + self.lamda * (error * self.P[user_id] - self.gamma * self.Q[item_id])
         self.P[user_id] = self.P[user_id] + self.lamda * (error * self.Q[item_id] - self.gamma * self.P[user_id])
-
 
 
 def get_unique_users_and_items(path_to_training):
@@ -195,16 +198,18 @@ def validation(model, validation_gen):
 
 def train_base_model_grid_search(latent_features_size, train_data_path):
     # (lamda, gamma)
-    params_to_test = [(0.005, 0.02),(0.005, 0.002),(0.5,0.1)]
+    lamdas = np.arange(0, 0.51, 0.05)
+    gammas = np.arange(0, 0.51, 0.01)
+    params_to_test = list(zip(lamdas, gammas))
     model_preformences = []
     for idx, params in enumerate(params_to_test):
         model_preformences.append(TrainBaseModel(latent_features_size, train_data_path, lamda=params[0], gamma=params[1]))
-    # with open('grid_search_res', 'w') as gsr_file:
-    #     for single_model_pref in model_preformences:
-    #         gsr_file.write("rmse: {}, last_epoch: {}, Gamma: {}, Lambda: {}".format(single_model_pref[1],
-    #         single_model_pref[2],
-    #         single_model_pref[0].gamma,
-    #         single_model_pref[0].lamda))
+    with open('grid_search_res', 'w') as gsr_file:
+        for single_model_pref in model_preformences:
+            gsr_file.write("rmse: {}, last_epoch: {}, Gamma: {}, Lambda: {}\n".format(single_model_pref[1],
+            single_model_pref[2],
+            single_model_pref[0].gamma,
+            single_model_pref[0].lamda))
     print('hello')
 
 def TrainBaseModel(latent_features_size, train_data_path, max_ephocs = 10, early_stopping=True, **grid_search_kwargs):
@@ -243,7 +248,7 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs = 10, early
         # calculate RMSE over the validation, stop when is larger from prev iteration.
         temp_rmse = validation(model, validation_gen=load(valid_split_path))
         print("Epoch #: {}, RMSE: {}".format(curr_epoch, temp_rmse))
-        if early_stopping and temp_rmse > curr_rmse:
+        if early_stopping and (curr_rmse - temp_rmse) < 0.000001: # if negative the model is becoming worse
             break
         curr_rmse = temp_rmse
         curr_epoch += 1
