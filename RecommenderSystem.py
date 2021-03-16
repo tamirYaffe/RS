@@ -36,7 +36,7 @@ def RMSE(true_ranks, predicted_ranks):
     :return:
     """
     acc = sum(list(map(lambda x, y: abs(x - y) < 1, true_ranks, predicted_ranks))) / len(true_ranks)
-    print("acc:{}".format(acc))
+    print("validation acc:{}".format(acc))
     return mean_squared_error(true_ranks, predicted_ranks, squared=False)
     # print(true_ranks, predicted_ranks)
 
@@ -126,7 +126,7 @@ def get_unique_users_and_items(path_to_training):
     return list(business_id.keys()), list(user_id.keys()), ranking_sum / rankings_cnt
 
 
-def split_and_save_train_validation(train_path, train_split_path, valid_split_path, validation_percent=0.3):
+def split_and_save_train_validation(train_path, train_split_path, valid_split_path, validation_percent=0.2):
     if os.path.exists(train_split_path) or os.path.exists(valid_split_path):
         os.remove(train_split_path)
         os.remove(valid_split_path)
@@ -160,6 +160,8 @@ def train_model(model, train_gen):
     :param model: the model to train.
     :param train_gen: a generator which iterates through all records to train on. throws StopIteration when finished.
     """
+    predicted_rankings = []
+    true_rankings = []
     single_record = next(train_gen)
     while single_record is not None:
         curr_user_id = single_record[1]
@@ -168,11 +170,14 @@ def train_model(model, train_gen):
         curr_prediction = model.predict(curr_user_id, curr_item_id)
         error = curr_rank - curr_prediction
         model.correction(error=error, user_id=curr_user_id, item_id=curr_item_id)
+        true_rankings.append(curr_rank)
+        predicted_rankings.append(curr_prediction)
         try:
             single_record = next(train_gen)
         except StopIteration:
             break
-
+    acc = sum(list(map(lambda x, y: abs(x - y) < 1, true_rankings, predicted_rankings))) / len(true_rankings)
+    print("training acc:{}".format(acc))
 
 def validation(model, validation_gen):
     """
@@ -204,8 +209,8 @@ def train_base_model_grid_search(latent_features_size, train_data_path):
     # lamdas = np.arange(0.05, 0.1, 0.01)
     # gammas = np.arange(0.05, 0.1, 0.01)
 
-    lamdas = [0.01]
-    gammas = [0.05]
+    lamdas = [0.05]
+    gammas = [0.005]
 
     params_to_test = list(zip(lamdas, gammas))
     model_preformences = []
@@ -221,7 +226,7 @@ def train_base_model_grid_search(latent_features_size, train_data_path):
     print('hello')
 
 
-def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=10, early_stopping=True, **grid_search_kwargs):
+def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_stopping=True, **grid_search_kwargs):
     """
     Implement of the basic model described in Recommender Systems Handbook, chapter 3, section 3.3
     :param latent_features_size: number of features for the model.
@@ -236,10 +241,10 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=10, early_s
     # split train_data into train and validation.
     train_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['train_split.csv'])
     valid_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['valid_split.csv'])
-    # split_and_save_train_validation(train_data_path,
-    #                                 train_split_path=train_split_path,
-    #                                 valid_split_path=valid_split_path,
-    #                                 validation_percent=0.3)
+    split_and_save_train_validation(train_data_path,
+                                    train_split_path=train_split_path,
+                                    valid_split_path=valid_split_path,
+                                    validation_percent=0.2)
 
     # randomly initialize U, b_u, b_i, p_u, q_i.
     model = BaseSVDModel(latent_features_size,
@@ -281,12 +286,6 @@ def TrainHybridModel():
 
 
 if __name__ == '__main__':
-    # train_data_path = "Data/userTrainDataSmall.csv"
-    train_data_path = "Data/userTrainData.csv"
-    # train_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['train_split.csv'])
-    # valid_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['valid_split.csv'])
-    # split_and_save_train_validation(train_data_path,
-    #                                 train_split_path=train_split_path,
-    #                                 valid_split_path=valid_split_path,
-    #                                 validation_percent=0.3)
+    train_data_path = "Data/userTrainDataSmall.csv"
+    # train_data_path = "Data/userTrainData.csv"
     train_base_model_grid_search(latent_features_size=3, train_data_path=train_data_path)
