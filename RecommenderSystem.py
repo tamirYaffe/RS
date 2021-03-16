@@ -1,11 +1,11 @@
 import os
 from abc import ABC
-import math
 import numpy as np
 import csv
 from sklearn.metrics import mean_squared_error
 
-np.random.seed(42)
+np.random.seed(420)
+
 
 def load(filepath):
     """
@@ -13,6 +13,7 @@ def load(filepath):
     :param filepath: path for the csv file(should not be local).
     :return: a generator for the data structure of the loaded file.
     """
+
     # print(filepath)
     def load_gen(path):
         with open(path, newline='') as org_file:
@@ -22,6 +23,7 @@ def load(filepath):
                 if l_idx != 0:
                     yield row_
                 l_idx += 1
+
     all_data_gen = load_gen(filepath)
     return all_data_gen
 
@@ -33,7 +35,7 @@ def RMSE(true_ranks, predicted_ranks):
     :param predicted_ranks: the model predicted ranking.
     :return:
     """
-    acc = sum(list(map(lambda x, y: abs(x-y)<1, true_ranks, predicted_ranks)))/len(true_ranks)
+    acc = sum(list(map(lambda x, y: abs(x - y) < 1, true_ranks, predicted_ranks))) / len(true_ranks)
     print("acc:{}".format(acc))
     return mean_squared_error(true_ranks, predicted_ranks, squared=False)
     # print(true_ranks, predicted_ranks)
@@ -72,11 +74,11 @@ class BaseSVDModel(ABSModelInterface):
         self.user_size = len(users_ids)
         self.item_size = len(items_ids)
 
-        self.Q = {key: np.random.rand((latent_features_size)) for key in items_ids}
-        self.BI = self.BU = {key: np.random.rand((1)) for key in items_ids}
+        self.Q = {key: np.random.rand(latent_features_size) for key in items_ids}
+        self.BI = self.BU = {key: np.random.rand(1) for key in items_ids}
 
-        self.P = {key: np.random.rand((latent_features_size)) for key in users_ids}
-        self.BU = {key: np.random.rand((1)) for key in users_ids}
+        self.P = {key: np.random.rand(latent_features_size) for key in users_ids}
+        self.BU = {key: np.random.rand(1) for key in users_ids}
 
         self.MU = ranking_mean
 
@@ -121,7 +123,7 @@ def get_unique_users_and_items(path_to_training):
         except StopIteration:
             break
 
-    return list(business_id.keys()), list(user_id.keys()), ranking_sum/rankings_cnt
+    return list(business_id.keys()), list(user_id.keys()), ranking_sum / rankings_cnt
 
 
 def split_and_save_train_validation(train_path, train_split_path, valid_split_path, validation_percent=0.3):
@@ -136,9 +138,9 @@ def split_and_save_train_validation(train_path, train_split_path, valid_split_pa
     valid_size = 0
     generator = load(train_path)
     single_record = next(generator)
-    while single_record != None:
+    while single_record is not None:
         if valid_size <= train_size * validation_percent:
-            if np.random.rand((1))[0] > validation_percent:
+            if np.random.rand(1)[0] > validation_percent:
                 val_file.writerow(single_record)
                 valid_size += 1
         else:
@@ -146,7 +148,7 @@ def split_and_save_train_validation(train_path, train_split_path, valid_split_pa
             train_size += 1
         try:
             single_record = next(generator)
-        except StopIteration as e:
+        except StopIteration:
             break
     print('val:{}\ntrain:{}'.format(valid_size, train_size))
 
@@ -159,7 +161,7 @@ def train_model(model, train_gen):
     :param train_gen: a generator which iterates through all records to train on. throws StopIteration when finished.
     """
     single_record = next(train_gen)
-    while single_record != None:
+    while single_record is not None:
         curr_user_id = single_record[1]
         curr_item_id = single_record[2]
         curr_rank = float(single_record[3])
@@ -168,7 +170,7 @@ def train_model(model, train_gen):
         model.correction(error=error, user_id=curr_user_id, item_id=curr_item_id)
         try:
             single_record = next(train_gen)
-        except StopIteration as e:
+        except StopIteration:
             break
 
 
@@ -183,7 +185,7 @@ def validation(model, validation_gen):
     single_record = next(validation_gen)
     predicted_rankings = []
     true_rankings = []
-    while single_record != None:
+    while single_record is not None:
         curr_user_id = single_record[1]
         curr_item_id = single_record[2]
         curr_rank = float(single_record[3])
@@ -191,28 +193,35 @@ def validation(model, validation_gen):
         predicted_rankings.append(model.predict(user_id=curr_user_id, item_id=curr_item_id))
         try:
             single_record = next(validation_gen)
-        except StopIteration as e:
+        except StopIteration:
             break
 
     return RMSE(true_ranks=true_rankings, predicted_ranks=predicted_rankings)
 
+
 def train_base_model_grid_search(latent_features_size, train_data_path):
     # (lamda, gamma)
-    lamdas = np.arange(0, 0.51, 0.05)
-    gammas = np.arange(0, 0.51, 0.01)
+    # lamdas = np.arange(0.05, 0.1, 0.01)
+    # gammas = np.arange(0.05, 0.1, 0.01)
+
+    lamdas = [0.01]
+    gammas = [0.05]
+
     params_to_test = list(zip(lamdas, gammas))
     model_preformences = []
     for idx, params in enumerate(params_to_test):
-        model_preformences.append(TrainBaseModel(latent_features_size, train_data_path, lamda=params[0], gamma=params[1]))
+        model_preformences.append(
+            TrainBaseModel(latent_features_size, train_data_path, lamda=params[0], gamma=params[1]))
     with open('grid_search_res', 'w') as gsr_file:
         for single_model_pref in model_preformences:
             gsr_file.write("rmse: {}, last_epoch: {}, Gamma: {}, Lambda: {}\n".format(single_model_pref[1],
-            single_model_pref[2],
-            single_model_pref[0].gamma,
-            single_model_pref[0].lamda))
+                                                                                      single_model_pref[2],
+                                                                                      single_model_pref[0].gamma,
+                                                                                      single_model_pref[0].lamda))
     print('hello')
 
-def TrainBaseModel(latent_features_size, train_data_path, max_ephocs = 10, early_stopping=True, **grid_search_kwargs):
+
+def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=10, early_stopping=True, **grid_search_kwargs):
     """
     Implement of the basic model described in Recommender Systems Handbook, chapter 3, section 3.3
     :param latent_features_size: number of features for the model.
@@ -227,10 +236,10 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs = 10, early
     # split train_data into train and validation.
     train_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['train_split.csv'])
     valid_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['valid_split.csv'])
-    split_and_save_train_validation(train_data_path,
-                                    train_split_path=train_split_path,
-                                    valid_split_path=valid_split_path,
-                                    validation_percent=0.3)
+    # split_and_save_train_validation(train_data_path,
+    #                                 train_split_path=train_split_path,
+    #                                 valid_split_path=valid_split_path,
+    #                                 validation_percent=0.3)
 
     # randomly initialize U, b_u, b_i, p_u, q_i.
     model = BaseSVDModel(latent_features_size,
@@ -248,12 +257,13 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs = 10, early
         # calculate RMSE over the validation, stop when is larger from prev iteration.
         temp_rmse = validation(model, validation_gen=load(valid_split_path))
         print("Epoch #: {}, RMSE: {}".format(curr_epoch, temp_rmse))
-        if early_stopping and (curr_rmse - temp_rmse) < 0.000001: # if negative the model is becoming worse
+        if early_stopping and (curr_rmse - temp_rmse) < 0.000001:  # if negative the model is becoming worse
             break
         curr_rmse = temp_rmse
         curr_epoch += 1
     # todo: improve RMSE by updating γ and λ.(???)
     return model, curr_rmse, curr_epoch
+
 
 def TrainImprovedModel():
     """
@@ -271,7 +281,8 @@ def TrainHybridModel():
 
 
 if __name__ == '__main__':
-    train_data_path = "Data/userTrainDataSmall.csv"
+    # train_data_path = "Data/userTrainDataSmall.csv"
+    train_data_path = "Data/userTrainData.csv"
     # train_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['train_split.csv'])
     # valid_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['valid_split.csv'])
     # split_and_save_train_validation(train_data_path,
@@ -279,5 +290,3 @@ if __name__ == '__main__':
     #                                 valid_split_path=valid_split_path,
     #                                 validation_percent=0.3)
     train_base_model_grid_search(latent_features_size=3, train_data_path=train_data_path)
-
-
