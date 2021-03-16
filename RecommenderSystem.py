@@ -2,7 +2,7 @@ import os
 from abc import ABC
 import numpy as np
 import csv
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, mean_squared_log_error
 
 np.random.seed(420)
 
@@ -43,14 +43,13 @@ def RMSE(true_ranks, predicted_ranks):
 
 def accuracyEval(true_ranks, predicted_ranks):
     """
-    Calculate the ??? for the ranking.
+    Calculate the Root Mean Squared Log Error (RMSLE) for the ranking.
     :param true_ranks: actual ranking.
     :param predicted_ranks: the model predicted ranking.
     :return:
     """
-    # todo: decide of a second evaluation method.
-    print(true_ranks, predicted_ranks)
-    pass
+    rmsle = np.sqrt(mean_squared_log_error(true_ranks, predicted_ranks))
+    return rmsle
 
 
 # todo: understand the input for this function
@@ -67,6 +66,29 @@ class ABSModelInterface(ABC):
         pass
 
 
+class SVDPlusModel(ABSModelInterface):
+    def __init__(self):
+        self.error_threshold = 0.01
+        # self.latent_features_size = latent_features_size
+        # self.user_size = len(users_ids)
+        # self.item_size = len(items_ids)
+        #
+        # self.Q = {key: np.random.rand(latent_features_size) for key in items_ids}
+        # self.BI = self.BU = {key: np.random.rand(1)/100 for key in items_ids}
+        #
+        # self.P = {key: np.random.rand(latent_features_size) for key in users_ids}
+        # self.BU = {key: np.random.rand(1)/100 for key in users_ids}
+        #
+        # self.MU = ranking_mean
+        #
+        # self.lamda = lamda
+        # self.gamma = gamma
+
+    def predict(self, user_id, item_id):
+        pass
+
+    def correction(self, error, user_id, item_id):
+        pass
 class BaseSVDModel(ABSModelInterface):
     def __init__(self, latent_features_size, users_ids, items_ids, ranking_mean, lamda=0.005, gamma=0.02):
         self.error_threshold = 0.01
@@ -75,10 +97,10 @@ class BaseSVDModel(ABSModelInterface):
         self.item_size = len(items_ids)
 
         self.Q = {key: np.random.rand(latent_features_size) for key in items_ids}
-        self.BI = self.BU = {key: np.random.rand(1) for key in items_ids}
+        self.BI = self.BU = {key: np.random.rand(1)/100 for key in items_ids}
 
         self.P = {key: np.random.rand(latent_features_size) for key in users_ids}
-        self.BU = {key: np.random.rand(1) for key in users_ids}
+        self.BU = {key: np.random.rand(1)/100 for key in users_ids}
 
         self.MU = ranking_mean
 
@@ -201,7 +223,7 @@ def validation(model, validation_gen):
         except StopIteration:
             break
 
-    return RMSE(true_ranks=true_rankings, predicted_ranks=predicted_rankings)
+    return RMSE(true_ranks=true_rankings, predicted_ranks=predicted_rankings), accuracyEval(true_rankings, predicted_rankings)
 
 
 def train_base_model_grid_search(latent_features_size, train_data_path):
@@ -209,8 +231,8 @@ def train_base_model_grid_search(latent_features_size, train_data_path):
     # lamdas = np.arange(0.05, 0.1, 0.01)
     # gammas = np.arange(0.05, 0.1, 0.01)
 
-    lamdas = [0.05]
-    gammas = [0.005]
+    lamdas = [0.005]
+    gammas = [0.015]
 
     params_to_test = list(zip(lamdas, gammas))
     model_preformences = []
@@ -260,8 +282,8 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_
         # train the model over entire training set
         train_model(model, train_gen=load(train_split_path))
         # calculate RMSE over the validation, stop when is larger from prev iteration.
-        temp_rmse = validation(model, validation_gen=load(valid_split_path))
-        print("Epoch #: {}, RMSE: {}".format(curr_epoch, temp_rmse))
+        temp_rmse, temp_rmsle = validation(model, validation_gen=load(valid_split_path))
+        print("Epoch #: {}, RMSE: {}, RMSLE: {}".format(curr_epoch, temp_rmse, temp_rmsle))
         if early_stopping and (curr_rmse - temp_rmse) < 0.000001:  # if negative the model is becoming worse
             break
         curr_rmse = temp_rmse
