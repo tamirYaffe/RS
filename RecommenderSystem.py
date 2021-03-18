@@ -48,6 +48,8 @@ def accuracyEval(true_ranks, predicted_ranks):
     :param predicted_ranks: the model predicted ranking.
     :return:
     """
+    if sum([x < 0 for x in predicted_ranks]) > 0:
+        return -1
     rmsle = np.sqrt(mean_squared_log_error(true_ranks, predicted_ranks))
     return rmsle
 
@@ -90,9 +92,10 @@ class SVDPlusModel(ABSModelInterface):
 
     def predict(self, user_id, item_id):
         y_i = np.array([self.Y[it_id] for it_id in self.RU[user_id]]).sum()
-        return self.MU + self.BI[item_id] + self.BU[user_id] + \
-               self.Q[item_id].transpose() * (self.P[user_id] +
-                                           y_i/math.sqrt(len(self.RU[user_id])) )
+        pred_val = self.MU + self.BI[item_id] + self.BU[user_id] + \
+                   np.dot(self.Q[item_id], (self.P[user_id] +
+                                                        y_i/math.sqrt(len(self.RU[user_id]))))
+        return pred_val[0]
 
     def correction(self, error, user_id, item_id):
         if abs(error) < self.error_threshold:
@@ -133,7 +136,7 @@ class BaseSVDModel(ABSModelInterface):
     def predict(self, user_id, item_id):
         user_latent_vec = self.P[user_id]
         item_latent_vec = self.Q[item_id]
-        item_latent_vec = item_latent_vec.transpose()
+        item_latent_vec = item_latent_vec
         temp_res = np.dot(user_latent_vec, item_latent_vec)
         pred_val = self.MU + self.BI[item_id] + self.BU[user_id] + temp_res
         return pred_val[0]
@@ -231,7 +234,7 @@ def train_model(model, train_gen):
         except StopIteration:
             break
     acc = sum(list(map(lambda x, y: abs(x - y) < 1, true_rankings, predicted_rankings))) / len(true_rankings)
-    model.lamda *= 0.9
+    # model.lamda *= 0.9
     print("training acc:{}".format(acc))
 
 
@@ -385,10 +388,10 @@ def TrainHybridModel():
 if __name__ == '__main__':
     train_data_path = "Data/userTrainDataSmall.csv"
     # train_data_path = "Data/userTrainData.csv"
-    # TrainImprovedModel(latent_features_size=3,
-    #                    train_data_path=train_data_path,
-    #                    max_ephocs=10,
-    #                    early_stopping=True)
+    TrainImprovedModel(latent_features_size=3,
+                       train_data_path=train_data_path,
+                       max_ephocs=50,
+                       early_stopping=True)
     # tuples = get_unique_users_and_items(path_to_training=train_data_path)
     # print(tuples[-1])
-    train_base_model_grid_search(latent_features_size=10, train_data_path=train_data_path)
+    # train_base_model_grid_search(latent_features_size=10, train_data_path=train_data_path)
