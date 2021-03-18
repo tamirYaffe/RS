@@ -82,8 +82,7 @@ class SVDPlusModel(ABSModelInterface):
         self.BU = {key: np.random.rand(1)/100 for key in users_ids}
         #
         self.MU = ranking_mean
-        # todo: should intialize with normal dist around zero (not uniform)
-        self.Y = {key: np.random.rand(latent_features_size) for key in items_ids}
+        self.Y = {key: np.random.randn(latent_features_size) for key in items_ids}
         self.RU = ru_dict
         #
         self.lamda = lamda
@@ -91,6 +90,7 @@ class SVDPlusModel(ABSModelInterface):
         self.gamma2 = gamma2
 
     def predict(self, user_id, item_id):
+        # todo: change dict call to get(, 0)
         y_i = np.array([self.Y[it_id] for it_id in self.RU[user_id]]).sum()
         pred_val = self.MU + self.BI[item_id] + self.BU[user_id] + \
                    np.dot(self.Q[item_id], (self.P[user_id] +
@@ -134,6 +134,7 @@ class BaseSVDModel(ABSModelInterface):
         self.gamma = gamma
 
     def predict(self, user_id, item_id):
+        # todo: change dict call to get(, 0)
         user_latent_vec = self.P[user_id]
         item_latent_vec = self.Q[item_id]
         item_latent_vec = item_latent_vec
@@ -343,10 +344,11 @@ def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, ea
     # split train_data into train and validation.
     train_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['train_split.csv'])
     valid_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['valid_split.csv'])
-    split_and_save_train_validation(train_data_path,
-                                    train_split_path=train_split_path,
-                                    valid_split_path=valid_split_path,
-                                    validation_percent=0.2)
+    test_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['userTestData.csv'])
+    # split_and_save_train_validation(train_data_path,
+    #                                 train_split_path=train_split_path,
+    #                                 valid_split_path=valid_split_path,
+    #                                 validation_percent=0.2)
     lamda = 0.007
     gamma1 = 0.005
     gamma2 = 0.015
@@ -365,9 +367,9 @@ def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, ea
 
     while curr_epoch <= max_ephocs:
         # train the model over entire training set
-        train_model(model, train_gen=load(train_split_path))
+        train_model(model, train_gen=load(train_data_path))
         # calculate RMSE over the validation, stop when is larger from prev iteration.
-        temp_rmse, temp_rmsle = validation(model, validation_gen=load(valid_split_path))
+        temp_rmse, temp_rmsle = validation(model, validation_gen=load(test_split_path))
         print("Epoch #: {}, RMSE: {}, RMSLE: {}".format(curr_epoch, temp_rmse, temp_rmsle))
         if early_stopping and (curr_rmse - temp_rmse) < 0.000001:  # if negative the model is becoming worse
             break
@@ -386,8 +388,8 @@ def TrainHybridModel():
 
 
 if __name__ == '__main__':
-    train_data_path = "Data/userTrainDataSmall.csv"
-    # train_data_path = "Data/userTrainData.csv"
+    # train_data_path = "Data/userTrainDataSmall.csv"
+    train_data_path = "Data/userTrainData.csv"
     TrainImprovedModel(latent_features_size=3,
                        train_data_path=train_data_path,
                        max_ephocs=50,
