@@ -89,8 +89,10 @@ class SVDPlusModel(ABSModelInterface):
 
     def correction(self, error, user_id, item_id):
         pass
+
+
 class BaseSVDModel(ABSModelInterface):
-    def __init__(self, latent_features_size, users_ids, items_ids, ranking_mean, lamda=0.005, gamma=0.02):
+    def __init__(self, latent_features_size, users_ids, items_ids, ranking_mean, lamda, gamma):
         self.error_threshold = 0.01
         self.latent_features_size = latent_features_size
         self.user_size = len(users_ids)
@@ -201,12 +203,15 @@ def train_model(model, train_gen):
     acc = sum(list(map(lambda x, y: abs(x - y) < 1, true_rankings, predicted_rankings))) / len(true_rankings)
     print("training acc:{}".format(acc))
 
+
 def validation(model, validation_gen):
     """
-    validates a model which implements the ABSModelInterface class. the function output is the RMSE over the validation set.
+    validates a model which implements the ABSModelInterface class. the function output is the RMSE over the validation
+     set.
     this function can and is used for single epoch validation round.
     :param model: the model to validate.
-    :param validation_gen: a generator which iterates through all records to validate with. throws StopIteration when finished.
+    :param validation_gen: a generator which iterates through all records to validate with. throws StopIteration when
+     finished.
     :return float, RMSE over validation set. uses implemented RMSE function.
     """
     single_record = next(validation_gen)
@@ -223,7 +228,8 @@ def validation(model, validation_gen):
         except StopIteration:
             break
 
-    return RMSE(true_ranks=true_rankings, predicted_ranks=predicted_rankings), accuracyEval(true_rankings, predicted_rankings)
+    return RMSE(true_ranks=true_rankings, predicted_ranks=predicted_rankings), accuracyEval(true_rankings,
+                                                                                            predicted_rankings)
 
 
 def train_base_model_grid_search(latent_features_size, train_data_path):
@@ -248,7 +254,7 @@ def train_base_model_grid_search(latent_features_size, train_data_path):
     print('hello')
 
 
-def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_stopping=True, **grid_search_kwargs):
+def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_stopping=True, lamda=0.002, gamma=0.05):
     """
     Implement of the basic model described in Recommender Systems Handbook, chapter 3, section 3.3
     :param latent_features_size: number of features for the model.
@@ -273,7 +279,8 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_
                          users_ids=users_ids,
                          items_ids=items_ids,
                          ranking_mean=ranking_mean,
-                         **grid_search_kwargs)
+                         lamda=lamda,
+                         gamma=gamma)
 
     curr_rmse = float('inf')
     curr_epoch = 0
