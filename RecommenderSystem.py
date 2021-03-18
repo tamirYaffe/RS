@@ -95,7 +95,21 @@ class SVDPlusModel(ABSModelInterface):
                                            y_i/math.sqrt(len(self.RU[user_id])) )
 
     def correction(self, error, user_id, item_id):
-        pass
+        if abs(error) < self.error_threshold:
+            return
+
+        y_i = np.array([self.Y[it_id] for it_id in self.RU[user_id]]).sum()
+
+        self.BU[user_id] = self.BU[user_id] + self.lamda * (error - self.gamma1 * self.BU[user_id])
+        self.BI[item_id] = self.BI[item_id] + self.lamda * (error - self.gamma1 * self.BI[item_id])
+
+        temp_qi = self.Q[item_id].copy()
+        self.Q[item_id] = self.Q[item_id] + self.lamda * (error * (self.P[user_id] +y_i/math.sqrt(len(self.RU[user_id]))) - self.gamma2 * self.Q[item_id])
+        self.P[user_id] = self.P[user_id] + self.lamda * (error * temp_qi - self.gamma2 * self.P[user_id])
+
+        for y_item_id in self.RU[user_id]:
+            self.Y[y_item_id] = self.Y[y_item_id] + self.lamda *\
+                                (error / math.sqrt(len(self.RU[user_id])) * temp_qi - self.gamma2 * self.Y[y_item_id])
 
 
 class BaseSVDModel(ABSModelInterface):
@@ -129,8 +143,10 @@ class BaseSVDModel(ABSModelInterface):
             return
         self.BU[user_id] = self.BU[user_id] + self.lamda * (error - self.gamma * self.BU[user_id])
         self.BI[item_id] = self.BI[item_id] + self.lamda * (error - self.gamma * self.BI[item_id])
+
+        temp_qi = self.Q[item_id].copy()
         self.Q[item_id] = self.Q[item_id] + self.lamda * (error * self.P[user_id] - self.gamma * self.Q[item_id])
-        self.P[user_id] = self.P[user_id] + self.lamda * (error * self.Q[item_id] - self.gamma * self.P[user_id])
+        self.P[user_id] = self.P[user_id] + self.lamda * (error * temp_qi - self.gamma * self.P[user_id])
 
 
 def get_unique_users_and_items(path_to_training):
@@ -215,6 +231,7 @@ def train_model(model, train_gen):
         except StopIteration:
             break
     acc = sum(list(map(lambda x, y: abs(x - y) < 1, true_rankings, predicted_rankings))) / len(true_rankings)
+    model.lamda *= 0.9
     print("training acc:{}".format(acc))
 
 
@@ -251,8 +268,8 @@ def train_base_model_grid_search(latent_features_size, train_data_path):
     # lamdas = np.arange(0.05, 0.1, 0.01)
     # gammas = np.arange(0.05, 0.1, 0.01)
 
-    lamdas = [0.005]
-    gammas = [0.015]
+    lamdas = [0.002]
+    gammas = [0.05]
 
     params_to_test = list(zip(lamdas, gammas))
     model_preformences = []
@@ -368,10 +385,10 @@ def TrainHybridModel():
 if __name__ == '__main__':
     train_data_path = "Data/userTrainDataSmall.csv"
     # train_data_path = "Data/userTrainData.csv"
-    TrainImprovedModel(latent_features_size=3,
-                       train_data_path=train_data_path,
-                       max_ephocs=10,
-                       early_stopping=True)
+    # TrainImprovedModel(latent_features_size=3,
+    #                    train_data_path=train_data_path,
+    #                    max_ephocs=10,
+    #                    early_stopping=True)
     # tuples = get_unique_users_and_items(path_to_training=train_data_path)
     # print(tuples[-1])
-    # train_base_model_grid_search(latent_features_size=3, train_data_path=train_data_path)
+    train_base_model_grid_search(latent_features_size=10, train_data_path=train_data_path)
