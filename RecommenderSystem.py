@@ -3,7 +3,7 @@ from abc import ABC
 import numpy as np
 import csv
 from sklearn.metrics import mean_squared_error, mean_squared_log_error
-
+import math
 np.random.seed(420)
 
 
@@ -67,25 +67,30 @@ class ABSModelInterface(ABC):
 
 
 class SVDPlusModel(ABSModelInterface):
-    def __init__(self):
+    def __init__(self, latent_features_size, users_ids, items_ids, ranking_mean, lamda, gamma):
         self.error_threshold = 0.01
-        # self.latent_features_size = latent_features_size
-        # self.user_size = len(users_ids)
-        # self.item_size = len(items_ids)
+        self.latent_features_size = latent_features_size
+        self.user_size = len(users_ids)
+        self.item_size = len(items_ids)
         #
-        # self.Q = {key: np.random.rand(latent_features_size) for key in items_ids}
-        # self.BI = self.BU = {key: np.random.rand(1)/100 for key in items_ids}
+        self.Q = {key: np.random.rand(latent_features_size) for key in items_ids}
+        self.BI = self.BU = {key: np.random.rand(1)/100 for key in items_ids}
+
+        self.P = {key: np.random.rand(latent_features_size) for key in users_ids}
+        self.BU = {key: np.random.rand(1)/100 for key in users_ids}
         #
-        # self.P = {key: np.random.rand(latent_features_size) for key in users_ids}
-        # self.BU = {key: np.random.rand(1)/100 for key in users_ids}
-        #
-        # self.MU = ranking_mean
+        self.MU = ranking_mean
+        # todo: should intialize with normal dist around zero (not uniform)
+        self.Y = {key: np.random.rand(latent_features_size) for key in items_ids}
+        # self.RU = {key: np.random}
         #
         # self.lamda = lamda
         # self.gamma = gamma
 
     def predict(self, user_id, item_id):
-        pass
+        y_i = np.array([self.Y[it_id] for it_id in self.RU[user_id]]).sum()
+        return self.MU + self.BI[item_id] + self.BU[user_id] + self.Q[item_id].transpose()(self.P[user_id] +
+                                                                                           y_i/math.sqrt(len(self.RU[user_id])) )
 
     def correction(self, error, user_id, item_id):
         pass
@@ -131,6 +136,7 @@ def get_unique_users_and_items(path_to_training):
     :param path_to_training: full path to training file
     :return: number of unique items, number of unique users, the mean ranking
     """
+    ru_dict = {}
     generator = load(path_to_training)
     single_record = next(generator)
     ranking_sum = 0
@@ -138,16 +144,22 @@ def get_unique_users_and_items(path_to_training):
     business_id = {}
     user_id = {}
     while single_record is not None:
-        user_id[single_record[1]] = 1
-        business_id[single_record[2]] = 1
-        ranking_sum += float(single_record[3])
+        curr_user_id = single_record[1]
+        curr_item_id = single_record[2]
+        curr_ranking = single_record[3]
+        user_set = ru_dict.get(curr_user_id, set())
+        user_set.add(curr_item_id)
+        ru_dict[curr_user_id] = user_set
+        user_id[curr_user_id] = 1
+        business_id[curr_item_id] = 1
+        ranking_sum += float(curr_ranking)
         rankings_cnt += 1
         try:
             single_record = next(generator)
         except StopIteration:
             break
 
-    return list(business_id.keys()), list(user_id.keys()), ranking_sum / rankings_cnt
+    return list(business_id.keys()), list(user_id.keys()), ranking_sum / rankings_cnt, ru_dict
 
 
 def split_and_save_train_validation(train_path, train_split_path, valid_split_path, validation_percent=0.2):
@@ -263,7 +275,7 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_
     """
 
     # print(latent_features_size, len(train_data_path))
-    items_ids, users_ids, ranking_mean = get_unique_users_and_items(train_data_path)
+    items_ids, users_ids, ranking_mean, ru_dict = get_unique_users_and_items(train_data_path)
     model = {}
 
     # split train_data into train and validation.
@@ -315,6 +327,8 @@ def TrainHybridModel():
 
 
 if __name__ == '__main__':
-    train_data_path = "Data/userTrainDataSmall.csv"
-    # train_data_path = "Data/userTrainData.csv"
-    train_base_model_grid_search(latent_features_size=3, train_data_path=train_data_path)
+    # train_data_path = "Data/userTrainDataSmall.csv"
+    train_data_path = "Data/userTrainData.csv"
+    tuples = get_unique_users_and_items(path_to_training=train_data_path)
+    print(tuples[-1])
+    # train_base_model_grid_search(latent_features_size=3, train_data_path=train_data_path)
