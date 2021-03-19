@@ -102,16 +102,23 @@ class SVDPlusModel(ABSModelInterface):
             pred_val = self.MU + Bi
 
         else:
-            y_i = np.array([self.Y[it_id] for it_id in self.RU[user_id]]).sum()
+            y_i = np.array(list(map(lambda x: self.Y[x], self.RU[user_id]))).sum()
+            # y_i = np.array([self.Y[it_id] for it_id in self.RU[user_id]]).sum()
             pred_val = self.MU + Bi + Bu + np.dot(item_latent_vec, (user_latent_vec + y_i / math.sqrt(len(Ru))))
 
-        return pred_val[0]
+        pred_val = pred_val[0]
+        if pred_val > 5:
+            pred_val = 5
+        if pred_val < 1:
+            pred_val = 1
+
+        return pred_val
 
     def correction(self, error, user_id, item_id):
         if abs(error) < self.error_threshold:
             return
-
-        y_i = np.array([self.Y[it_id] for it_id in self.RU[user_id]]).sum()
+        y_i = np.array(list(map(lambda x: self.Y[x], self.RU[user_id]))).sum()
+        # y_i = np.array([self.Y[it_id] for it_id in self.RU[user_id]]).sum()
 
         self.BU[user_id] = self.BU[user_id] + self.lamda * (error - self.gamma1 * self.BU[user_id])
         self.BI[item_id] = self.BI[item_id] + self.lamda * (error - self.gamma1 * self.BI[item_id])
@@ -151,7 +158,13 @@ class BaseSVDModel(ABSModelInterface):
         Bu = self.BU.get(user_id, 0)
 
         pred_val = self.MU + Bi + Bu + np.dot(user_latent_vec, item_latent_vec)
-        return pred_val[0]
+        pred_val = pred_val[0]
+        if pred_val > 5:
+            pred_val = 5
+        if pred_val < 1:
+            pred_val = 1
+
+        return pred_val
 
     def correction(self, error, user_id, item_id):
         if abs(error) < self.error_threshold:
@@ -404,13 +417,13 @@ if __name__ == '__main__':
     # train_data_path = "Data/userTrainDataSmall.csv"
     train_data_path = "Data/userTrainData.csv"
 
-    TrainImprovedModel(latent_features_size=3,
-                       train_data_path=train_data_path,
-                       max_ephocs=50,
-                       early_stopping=True)
+    # TrainImprovedModel(latent_features_size=3,
+    #                    train_data_path=train_data_path,
+    #                    max_ephocs=50,
+    #                    early_stopping=True)
 
-    # TrainBaseModel(latent_features_size=3,
-    #                train_data_path=train_data_path,
-    #                max_ephocs=50,
-    #                early_stopping=True)
+    TrainBaseModel(latent_features_size=3,
+                   train_data_path=train_data_path,
+                   max_ephocs=50,
+                   early_stopping=True)
 
