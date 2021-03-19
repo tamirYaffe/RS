@@ -4,6 +4,7 @@ import numpy as np
 import csv
 from sklearn.metrics import mean_squared_error, mean_squared_log_error
 import math
+
 np.random.seed(420)
 
 
@@ -76,10 +77,10 @@ class SVDPlusModel(ABSModelInterface):
         self.item_size = len(items_ids)
         #
         self.Q = {key: np.random.rand(latent_features_size) for key in items_ids}
-        self.BI = self.BU = {key: np.random.rand(1)/100 for key in items_ids}
+        self.BI = self.BU = {key: np.random.rand(1) / 100 for key in items_ids}
 
         self.P = {key: np.random.rand(latent_features_size) for key in users_ids}
-        self.BU = {key: np.random.rand(1)/100 for key in users_ids}
+        self.BU = {key: np.random.rand(1) / 100 for key in users_ids}
         #
         self.MU = ranking_mean
         self.Y = {key: np.random.randn(latent_features_size) for key in items_ids}
@@ -91,10 +92,19 @@ class SVDPlusModel(ABSModelInterface):
 
     def predict(self, user_id, item_id):
         # todo: change dict call to get(, 0)
-        y_i = np.array([self.Y[it_id] for it_id in self.RU[user_id]]).sum()
-        pred_val = self.MU + self.BI[item_id] + self.BU[user_id] + \
-                   np.dot(self.Q[item_id], (self.P[user_id] +
-                                                        y_i/math.sqrt(len(self.RU[user_id]))))
+        user_latent_vec = self.P.get(user_id, np.zeros(self.latent_features_size))
+        item_latent_vec = self.Q.get(item_id, np.zeros(self.latent_features_size))
+        Bi = self.BI.get(item_id, 0)
+        Bu = self.BU.get(user_id, 0)
+
+        Ru = self.RU.get(user_id, [])
+        if len(Ru) == 0:
+            pred_val = self.MU + Bi
+
+        else:
+            y_i = np.array([self.Y[it_id] for it_id in self.RU[user_id]]).sum()
+            pred_val = self.MU + Bi + Bu + np.dot(item_latent_vec, (user_latent_vec + y_i / math.sqrt(len(Ru))))
+
         return pred_val[0]
 
     def correction(self, error, user_id, item_id):
@@ -107,11 +117,12 @@ class SVDPlusModel(ABSModelInterface):
         self.BI[item_id] = self.BI[item_id] + self.lamda * (error - self.gamma1 * self.BI[item_id])
 
         temp_qi = self.Q[item_id].copy()
-        self.Q[item_id] = self.Q[item_id] + self.lamda * (error * (self.P[user_id] +y_i/math.sqrt(len(self.RU[user_id]))) - self.gamma2 * self.Q[item_id])
+        self.Q[item_id] = self.Q[item_id] + self.lamda * (
+                    error * (self.P[user_id] + y_i / math.sqrt(len(self.RU[user_id]))) - self.gamma2 * self.Q[item_id])
         self.P[user_id] = self.P[user_id] + self.lamda * (error * temp_qi - self.gamma2 * self.P[user_id])
 
         for y_item_id in self.RU[user_id]:
-            self.Y[y_item_id] = self.Y[y_item_id] + self.lamda *\
+            self.Y[y_item_id] = self.Y[y_item_id] + self.lamda * \
                                 (error / math.sqrt(len(self.RU[user_id])) * temp_qi - self.gamma2 * self.Y[y_item_id])
 
 
@@ -123,10 +134,10 @@ class BaseSVDModel(ABSModelInterface):
         self.item_size = len(items_ids)
 
         self.Q = {key: np.random.rand(latent_features_size) for key in items_ids}
-        self.BI = self.BU = {key: np.random.rand(1)/100 for key in items_ids}
+        self.BI = self.BU = {key: np.random.rand(1) / 100 for key in items_ids}
 
         self.P = {key: np.random.rand(latent_features_size) for key in users_ids}
-        self.BU = {key: np.random.rand(1)/100 for key in users_ids}
+        self.BU = {key: np.random.rand(1) / 100 for key in users_ids}
 
         self.MU = ranking_mean
 
@@ -134,12 +145,12 @@ class BaseSVDModel(ABSModelInterface):
         self.gamma = gamma
 
     def predict(self, user_id, item_id):
-        # todo: change dict call to get(, 0)
-        user_latent_vec = self.P[user_id]
-        item_latent_vec = self.Q[item_id]
-        item_latent_vec = item_latent_vec
-        temp_res = np.dot(user_latent_vec, item_latent_vec)
-        pred_val = self.MU + self.BI[item_id] + self.BU[user_id] + temp_res
+        user_latent_vec = self.P.get(user_id, np.zeros(self.latent_features_size))
+        item_latent_vec = self.Q.get(item_id, np.zeros(self.latent_features_size))
+        Bi = self.BI.get(item_id, 0)
+        Bu = self.BU.get(user_id, 0)
+
+        pred_val = self.MU + Bi + Bu + np.dot(user_latent_vec, item_latent_vec)
         return pred_val[0]
 
     def correction(self, error, user_id, item_id):
@@ -304,10 +315,12 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_
     # split train_data into train and validation.
     train_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['train_split.csv'])
     valid_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['valid_split.csv'])
-    split_and_save_train_validation(train_data_path,
-                                    train_split_path=train_split_path,
-                                    valid_split_path=valid_split_path,
-                                    validation_percent=0.2)
+    test_data_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['userTestData.csv'])
+
+    # split_and_save_train_validation(train_data_path,
+    #                                 train_split_path=train_split_path,
+    #                                 valid_split_path=valid_split_path,
+    #                                 validation_percent=0.2)
 
     # randomly initialize U, b_u, b_i, p_u, q_i.
     model = BaseSVDModel(latent_features_size,
@@ -322,9 +335,9 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_
 
     while curr_epoch <= max_ephocs:
         # train the model over entire training set
-        train_model(model, train_gen=load(train_split_path))
+        train_model(model, train_gen=load(train_data_path))
         # calculate RMSE over the validation, stop when is larger from prev iteration.
-        temp_rmse, temp_rmsle = validation(model, validation_gen=load(valid_split_path))
+        temp_rmse, temp_rmsle = validation(model, validation_gen=load(test_data_path))
         print("Epoch #: {}, RMSE: {}, RMSLE: {}".format(curr_epoch, temp_rmse, temp_rmsle))
         if early_stopping and (curr_rmse - temp_rmse) < 0.000001:  # if negative the model is becoming worse
             break
@@ -390,10 +403,14 @@ def TrainHybridModel():
 if __name__ == '__main__':
     # train_data_path = "Data/userTrainDataSmall.csv"
     train_data_path = "Data/userTrainData.csv"
+
     TrainImprovedModel(latent_features_size=3,
                        train_data_path=train_data_path,
                        max_ephocs=50,
                        early_stopping=True)
-    # tuples = get_unique_users_and_items(path_to_training=train_data_path)
-    # print(tuples[-1])
-    # train_base_model_grid_search(latent_features_size=10, train_data_path=train_data_path)
+
+    # TrainBaseModel(latent_features_size=3,
+    #                train_data_path=train_data_path,
+    #                max_ephocs=50,
+    #                early_stopping=True)
+
