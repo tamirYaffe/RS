@@ -1,8 +1,10 @@
 import os
 from abc import ABC
 import numpy as np
+import pandas as pd
 import csv
 from sklearn.metrics import mean_squared_error, mean_squared_log_error
+from sklearn import preprocessing
 import math
 
 np.random.seed(420)
@@ -402,6 +404,67 @@ def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, ea
     return model, curr_rmse, curr_epoch
 
 
+class ContentModel(ABSModelInterface):
+    def __init__(self, train_data_gen, valid_data_gen):
+        pass
+
+    def predict(self, user_id, item_id):
+        pass
+
+
+def pre_process_for_content_model(user_data_path, item_data_path, reviews_data_path):
+    # item_data_gen = load(item_data_path)
+    le = preprocessing.LabelEncoder()
+    scaler = preprocessing.MinMaxScaler()
+    final_df = pd.DataFrame(columns=['user_id', 'item_id', 'f1', 'rating'])
+    item_data_df = pd.read_csv(item_data_path)
+    item_data_df.drop(axis=1, labels=['name', 'neighborhood','address', 'postal_code', 'latitude', 'longitude', 'is_open'], inplace=True)
+    item_data_df['categories'] = [len(x.split(';')) for x in item_data_df['categories']]
+    item_data_df['city'] = le.fit_transform(item_data_df['city'])
+    item_data_df['state'] = le.fit_transform(item_data_df['state'])
+    item_data_df['review_count'] = item_data_df['review_count'].astype(int)
+    item_data_df['categories'] = item_data_df['categories'].astype(int)
+    item_data_df['review_count'] = scaler.fit_transform(item_data_df['review_count'].values.reshape(-1, 1))
+    item_data_df['categories'] = scaler.fit_transform(item_data_df['categories'].values.reshape(-1, 1))
+    items_to_features_hash = item_data_df.set_index('business_id').T.to_dict('list')
+    print(items_to_features_hash)
+
+
+
+
+    # single_record = next(item_data_gen)
+    # items_hash = {}
+    # all_items_ids = []
+    # all_items_cities = []
+    # all_items_states = []
+    # all_items_avg_rankings = []
+    # all_items_reviews_cnt = []
+    # all_items_categories = []
+    # items_catories_set = set()
+    # while single_record is not None:
+    #     item_id = single_record[0]
+
+        # item_city = single_record[4]
+        # item_state = single_record[5]
+        # item_avg_ranking = int(single_record[9])
+        # item_review_cnt = int(single_record[10])
+        # item_categories_len = len(single_record[12].split(';'))
+        # items_catories_set.update(item_categories_lst)
+        # items_hash[item_id] = {
+        #     'item_city': item_city,
+        #     'item_state': item_state,
+        #
+        #
+        # }
+
+
+
+    #     try:
+    #         single_record = next(item_data_gen)
+    #     except StopIteration:
+    #         break
+    # print(len(items_catories_set))
+
 def TrainContentModel():
     pass
 
@@ -411,15 +474,19 @@ def TrainHybridModel():
 
 
 if __name__ == '__main__':
-    # train_data_path = "Data/userTrainDataSmall.csv"
-    train_data_path = "Data/userTrainData.csv"
+    train_data_path = "Data/userTrainDataSmall.csv"
+    # train_data_path = "Data/userTrainData.csv"
 
     # TrainImprovedModel(latent_features_size=3,
     #                    train_data_path=train_data_path,
     #                    max_ephocs=50,
     #                    early_stopping=True)
 
-    TrainBaseModel(latent_features_size=3,
-                   train_data_path=train_data_path,
-                   max_ephocs=50,
-                   early_stopping=True)
+    # TrainBaseModel(latent_features_size=3,
+    #                train_data_path=train_data_path,
+    #                max_ephocs=50,
+    #                early_stopping=True)
+    # user_data = load('Data/yelp_user.csv')
+    # item_data = load('Data/yelp_business.csv')
+
+    pre_process_for_content_model(user_data_path='Data/yelp_user.csv', item_data_path='Data/yelp_business.csv', reviews_data_path=train_data_path)
