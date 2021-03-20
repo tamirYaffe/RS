@@ -69,6 +69,50 @@ class ABSModelInterface(ABC):
         pass
 
 
+class BaseSVDModel(ABSModelInterface):
+    def __init__(self, latent_features_size, users_ids, items_ids, ranking_mean, lamda, gamma):
+        self.error_threshold = 0.01
+        self.latent_features_size = latent_features_size
+        self.user_size = len(users_ids)
+        self.item_size = len(items_ids)
+
+        self.Q = {key: np.random.rand(latent_features_size) for key in items_ids}
+        self.BI = self.BU = {key: np.random.rand(1) / 100 for key in items_ids}
+
+        self.P = {key: np.random.rand(latent_features_size) for key in users_ids}
+        self.BU = {key: np.random.rand(1) / 100 for key in users_ids}
+
+        self.MU = ranking_mean
+
+        self.lamda = lamda
+        self.gamma = gamma
+
+    def predict(self, user_id, item_id):
+        user_latent_vec = self.P.get(user_id, np.zeros(self.latent_features_size))
+        item_latent_vec = self.Q.get(item_id, np.zeros(self.latent_features_size))
+        Bi = self.BI.get(item_id, 0)
+        Bu = self.BU.get(user_id, 0)
+
+        pred_val = self.MU + Bi + Bu + np.dot(user_latent_vec, item_latent_vec)
+        pred_val = pred_val[0]
+        if pred_val > 5:
+            pred_val = 5
+        if pred_val < 1:
+            pred_val = 1
+
+        return pred_val
+
+    def correction(self, error, user_id, item_id):
+        if abs(error) < self.error_threshold:
+            return
+        self.BU[user_id] = self.BU[user_id] + self.lamda * (error - self.gamma * self.BU[user_id])
+        self.BI[item_id] = self.BI[item_id] + self.lamda * (error - self.gamma * self.BI[item_id])
+
+        temp_qi = self.Q[item_id].copy()
+        self.Q[item_id] = self.Q[item_id] + self.lamda * (error * self.P[user_id] - self.gamma * self.Q[item_id])
+        self.P[user_id] = self.P[user_id] + self.lamda * (error * temp_qi - self.gamma * self.P[user_id])
+
+
 class SVDPlusModel(ABSModelInterface):
     def __init__(self, latent_features_size, users_ids, items_ids, ranking_mean, ru_dict, lamda, gamma1, gamma2):
         self.error_threshold = 0.01
@@ -131,50 +175,6 @@ class SVDPlusModel(ABSModelInterface):
         for y_item_id in self.RU[user_id]:
             self.Y[y_item_id] = self.Y[y_item_id] + self.lamda * \
                                 (error / math.sqrt(len(self.RU[user_id])) * temp_qi - self.gamma2 * self.Y[y_item_id])
-
-
-class BaseSVDModel(ABSModelInterface):
-    def __init__(self, latent_features_size, users_ids, items_ids, ranking_mean, lamda, gamma):
-        self.error_threshold = 0.01
-        self.latent_features_size = latent_features_size
-        self.user_size = len(users_ids)
-        self.item_size = len(items_ids)
-
-        self.Q = {key: np.random.rand(latent_features_size) for key in items_ids}
-        self.BI = self.BU = {key: np.random.rand(1) / 100 for key in items_ids}
-
-        self.P = {key: np.random.rand(latent_features_size) for key in users_ids}
-        self.BU = {key: np.random.rand(1) / 100 for key in users_ids}
-
-        self.MU = ranking_mean
-
-        self.lamda = lamda
-        self.gamma = gamma
-
-    def predict(self, user_id, item_id):
-        user_latent_vec = self.P.get(user_id, np.zeros(self.latent_features_size))
-        item_latent_vec = self.Q.get(item_id, np.zeros(self.latent_features_size))
-        Bi = self.BI.get(item_id, 0)
-        Bu = self.BU.get(user_id, 0)
-
-        pred_val = self.MU + Bi + Bu + np.dot(user_latent_vec, item_latent_vec)
-        pred_val = pred_val[0]
-        if pred_val > 5:
-            pred_val = 5
-        if pred_val < 1:
-            pred_val = 1
-
-        return pred_val
-
-    def correction(self, error, user_id, item_id):
-        if abs(error) < self.error_threshold:
-            return
-        self.BU[user_id] = self.BU[user_id] + self.lamda * (error - self.gamma * self.BU[user_id])
-        self.BI[item_id] = self.BI[item_id] + self.lamda * (error - self.gamma * self.BI[item_id])
-
-        temp_qi = self.Q[item_id].copy()
-        self.Q[item_id] = self.Q[item_id] + self.lamda * (error * self.P[user_id] - self.gamma * self.Q[item_id])
-        self.P[user_id] = self.P[user_id] + self.lamda * (error * temp_qi - self.gamma * self.P[user_id])
 
 
 def get_unique_users_and_items(path_to_training):
@@ -328,12 +328,12 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_
     # split train_data into train and validation.
     train_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['train_split.csv'])
     valid_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['valid_split.csv'])
-    test_data_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['userTestData.csv'])
+    # test_data_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['userTestData.csv'])
 
-    # split_and_save_train_validation(train_data_path,
-    #                                 train_split_path=train_split_path,
-    #                                 valid_split_path=valid_split_path,
-    #                                 validation_percent=0.2)
+    split_and_save_train_validation(train_data_path,
+                                    train_split_path=train_split_path,
+                                    valid_split_path=valid_split_path,
+                                    validation_percent=0.2)
 
     # randomly initialize U, b_u, b_i, p_u, q_i.
     model = BaseSVDModel(latent_features_size,
@@ -348,9 +348,9 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_
 
     while curr_epoch <= max_ephocs:
         # train the model over entire training set
-        train_model(model, train_gen=load(train_data_path))
+        train_model(model, train_gen=load(train_split_path))
         # calculate RMSE over the validation, stop when is larger from prev iteration.
-        temp_rmse, temp_rmsle = validation(model, validation_gen=load(test_data_path))
+        temp_rmse, temp_rmsle = validation(model, validation_gen=load(valid_split_path))
         print("Epoch #: {}, RMSE: {}, RMSLE: {}".format(curr_epoch, temp_rmse, temp_rmsle))
         if early_stopping and (curr_rmse - temp_rmse) < 0.000001:  # if negative the model is becoming worse
             break
@@ -370,11 +370,11 @@ def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, ea
     # split train_data into train and validation.
     train_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['train_split.csv'])
     valid_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['valid_split.csv'])
-    test_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['userTestData.csv'])
-    # split_and_save_train_validation(train_data_path,
-    #                                 train_split_path=train_split_path,
-    #                                 valid_split_path=valid_split_path,
-    #                                 validation_percent=0.2)
+    # test_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['userTestData.csv'])
+    split_and_save_train_validation(train_data_path,
+                                    train_split_path=train_split_path,
+                                    valid_split_path=valid_split_path,
+                                    validation_percent=0.2)
     lamda = 0.007
     gamma1 = 0.005
     gamma2 = 0.015
@@ -393,9 +393,9 @@ def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, ea
 
     while curr_epoch <= max_ephocs:
         # train the model over entire training set
-        train_model(model, train_gen=load(train_data_path))
+        train_model(model, train_gen=load(train_split_path))
         # calculate RMSE over the validation, stop when is larger from prev iteration.
-        temp_rmse, temp_rmsle = validation(model, validation_gen=load(test_split_path))
+        temp_rmse, temp_rmsle = validation(model, validation_gen=load(valid_split_path))
         print("Epoch #: {}, RMSE: {}, RMSLE: {}".format(curr_epoch, temp_rmse, temp_rmsle))
         if early_stopping and (curr_rmse - temp_rmse) < 0.000001:  # if negative the model is becoming worse
             break
@@ -426,4 +426,3 @@ if __name__ == '__main__':
                    train_data_path=train_data_path,
                    max_ephocs=50,
                    early_stopping=True)
-
