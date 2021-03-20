@@ -135,7 +135,6 @@ class SVDPlusModel(ABSModelInterface):
         self.gamma2 = gamma2
 
     def predict(self, user_id, item_id):
-        # todo: change dict call to get(, 0)
         user_latent_vec = self.P.get(user_id, np.zeros(self.latent_features_size))
         item_latent_vec = self.Q.get(item_id, np.zeros(self.latent_features_size))
         Bi = self.BI.get(item_id, 0)
@@ -356,7 +355,6 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_
             break
         curr_rmse = temp_rmse
         curr_epoch += 1
-    # todo: improve RMSE by updating γ and λ.(???)
     return model, curr_rmse, curr_epoch
 
 
@@ -401,7 +399,6 @@ def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, ea
             break
         curr_rmse = temp_rmse
         curr_epoch += 1
-    # todo: improve RMSE by updating γ and λ.(???)
     return model, curr_rmse, curr_epoch
 
 
