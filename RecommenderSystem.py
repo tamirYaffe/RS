@@ -4,8 +4,10 @@ import numpy as np
 import pandas as pd
 import csv
 from sklearn.metrics import mean_squared_error, mean_squared_log_error
+from sklearn.ensemble import RandomForestRegressor
 from sklearn import preprocessing
 import math
+
 
 np.random.seed(420)
 
@@ -405,65 +407,71 @@ def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, ea
 
 
 class ContentModel(ABSModelInterface):
-    def __init__(self, train_data_gen, valid_data_gen):
-        pass
+    def __init__(self, items_hashmap, users_hashmap):
+        self.users_hashmap = users_hashmap
+        self.items_hashmap = items_hashmap
+        self.model = RandomForestRegressor(n_estimators=10)
+        self.trained = False
+
+    def train(self, x_train, y_train):
+        self.model.fit(x_train, y_train)
+        self.trained = True
 
     def predict(self, user_id, item_id):
-        pass
+        assert self.trained
+        x_to_pred = self.users_hashmap[user_id] + self.items_hashmap[item_id]
+        prediction = self.model.predict(x_to_pred)
+        return prediction
 
 
 def pre_process_for_content_model(user_data_path, item_data_path, reviews_data_path):
     # item_data_gen = load(item_data_path)
     le = preprocessing.LabelEncoder()
     scaler = preprocessing.MinMaxScaler()
-    final_df = pd.DataFrame(columns=['user_id', 'item_id', 'f1', 'rating'])
+
     item_data_df = pd.read_csv(item_data_path)
     item_data_df.drop(axis=1, labels=['name', 'neighborhood','address', 'postal_code', 'latitude', 'longitude', 'is_open'], inplace=True)
     item_data_df['categories'] = [len(x.split(';')) for x in item_data_df['categories']]
+
     item_data_df['city'] = le.fit_transform(item_data_df['city'])
     item_data_df['state'] = le.fit_transform(item_data_df['state'])
-    item_data_df['review_count'] = item_data_df['review_count'].astype(int)
-    item_data_df['categories'] = item_data_df['categories'].astype(int)
-    item_data_df['review_count'] = scaler.fit_transform(item_data_df['review_count'].values.reshape(-1, 1))
-    item_data_df['categories'] = scaler.fit_transform(item_data_df['categories'].values.reshape(-1, 1))
+    item_data_df['review_count'] = scaler.fit_transform(item_data_df['review_count'].values.reshape(-1, 1).astype(int))
+    item_data_df['categories'] = scaler.fit_transform(item_data_df['categories'].values.reshape(-1, 1).astype(int))
     items_to_features_hash = item_data_df.set_index('business_id').T.to_dict('list')
-    print(items_to_features_hash)
+
+    user_data_df = pd.read_csv(user_data_path)
+    columns_to_drop = ['name', 'yelping_since', 'friends', 'elite', 'compliment_hot', 'compliment_more', 'compliment_profile', 'compliment_cute', 'compliment_list', 'compliment_note', 'compliment_plain', 'compliment_cool', 'compliment_funny', 'compliment_writer', 'compliment_photos']
+    user_data_df.drop(axis=1, labels=columns_to_drop, inplace=True)
+    user_data_df['review_count'] = scaler.fit_transform(user_data_df['review_count'].values.reshape(-1, 1).astype(int))
+    user_data_df['useful'] = scaler.fit_transform(user_data_df['useful'].values.reshape(-1, 1).astype(int))
+    user_data_df['funny'] = scaler.fit_transform(user_data_df['funny'].values.reshape(-1, 1).astype(int))
+    user_data_df['cool'] = scaler.fit_transform(user_data_df['cool'].values.reshape(-1, 1).astype(int))
+    user_data_df['fans'] = scaler.fit_transform(user_data_df['fans'].values.reshape(-1, 1).astype(int))
+    user_data_df['average_stars'] = user_data_df['average_stars'].values.reshape(-1, 1).astype(float)
+    users_to_features_hash = user_data_df.set_index('user_id').T.to_dict('list')
 
 
-
-
-    # single_record = next(item_data_gen)
-    # items_hash = {}
-    # all_items_ids = []
-    # all_items_cities = []
-    # all_items_states = []
-    # all_items_avg_rankings = []
-    # all_items_reviews_cnt = []
-    # all_items_categories = []
-    # items_catories_set = set()
-    # while single_record is not None:
-    #     item_id = single_record[0]
-
-        # item_city = single_record[4]
-        # item_state = single_record[5]
-        # item_avg_ranking = int(single_record[9])
-        # item_review_cnt = int(single_record[10])
-        # item_categories_len = len(single_record[12].split(';'))
-        # items_catories_set.update(item_categories_lst)
-        # items_hash[item_id] = {
-        #     'item_city': item_city,
-        #     'item_state': item_state,
-        #
-        #
-        # }
-
-
-
-    #     try:
-    #         single_record = next(item_data_gen)
-    #     except StopIteration:
-    #         break
-    # print(len(items_catories_set))
+    # Reviews section - concat review to user id and item id
+    X_Y_true = list()
+    Y_true = list()
+    review_gen = load(reviews_data_path)
+    single_record = next(review_gen)
+    while single_record is not None:
+        curr_user_id = single_record[1]
+        curr_item_id = single_record[2]
+        curr_true_rank = float(single_record[3])
+        curr_user_features = users_to_features_hash[curr_user_id]
+        curr_item_features = items_to_features_hash[curr_item_id]
+        X_Y_true.append(np.array(curr_user_features+curr_item_features+[curr_true_rank]))
+        # Y_true.append(curr_true_rank)
+        try:
+            single_record = next(review_gen)
+        except StopIteration as e:
+            break
+    X_Y_true = np.array(X_Y_true)
+    # Y_true = np.array(Y_true)
+    new_feature_df = pd.DataFrame(X_Y_true, columns=['if1', 'if2', 'if3', 'if4', 'if5', 'uf1', 'uf2', 'uf3', 'uf4', 'uf5', 'uf6', 'Stars'])
+    new_feature_df.to_csv('content_df.csv')
 
 def TrainContentModel():
     pass
@@ -474,8 +482,8 @@ def TrainHybridModel():
 
 
 if __name__ == '__main__':
-    train_data_path = "Data/userTrainDataSmall.csv"
-    # train_data_path = "Data/userTrainData.csv"
+    # train_data_path = "Data/userTrainDataSmall.csv"
+    train_data_path = "Data/userTrainData.csv"
 
     # TrainImprovedModel(latent_features_size=3,
     #                    train_data_path=train_data_path,
