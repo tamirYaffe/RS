@@ -420,7 +420,7 @@ class ContentModel(ABSModelInterface):
     def predict(self, user_id, item_id):
         assert self.trained
         x_to_pred = self.users_hashmap[user_id] + self.items_hashmap[item_id]
-        prediction = self.model.predict(x_to_pred)
+        prediction = self.model.predict(np.array(x_to_pred).reshape(1, len(x_to_pred)))
         return prediction
 
 def create_hashmaps(user_data_path, item_data_path):
@@ -498,8 +498,8 @@ def TrainHybridModel():
 
 
 if __name__ == '__main__':
-    # train_data_path = "Data/userTrainDataSmall.csv"
-    train_data_path = "Data/userTrainData.csv"
+    train_data_path = "Data/userTrainDataSmall.csv"
+    # train_data_path = "Data/userTrainData.csv"
     # TrainImprovedModel(latent_features_size=3,
     #                    train_data_path=train_data_path,
     #                    max_ephocs=50,
