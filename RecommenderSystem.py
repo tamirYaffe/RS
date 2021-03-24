@@ -414,8 +414,10 @@ class ContentModel(ABSModelInterface):
         self.trained = False
 
     def train(self, x_train, y_train):
+        print('started training') # todo: remove before submission
         self.model.fit(x_train, y_train)
         self.trained = True
+        print('finished training') # todo: remove before submission
 
     def predict(self, user_id, item_id):
         assert self.trained
@@ -431,8 +433,8 @@ def create_hashmaps(user_data_path, item_data_path):
     item_data_df.drop(axis=1, labels=['name', 'neighborhood','address', 'postal_code', 'latitude', 'longitude', 'is_open'], inplace=True)
     item_data_df['categories'] = [len(x.split(';')) for x in item_data_df['categories']]
 
-    item_data_df['city'] = le.fit_transform(item_data_df['city'])
-    item_data_df['state'] = le.fit_transform(item_data_df['state'])
+    item_data_df['city'] = le.fit_transform(item_data_df['city'].astype(str))
+    item_data_df['state'] = le.fit_transform(item_data_df['state'].astype(str))
     item_data_df['review_count'] = scaler.fit_transform(item_data_df['review_count'].values.reshape(-1, 1).astype(int))
     item_data_df['categories'] = scaler.fit_transform(item_data_df['categories'].values.reshape(-1, 1).astype(int))
     items_to_features_hash = item_data_df.set_index('business_id').T.to_dict('list')
@@ -450,7 +452,8 @@ def create_hashmaps(user_data_path, item_data_path):
 
     return users_to_features_hash, items_to_features_hash
 
-def pre_process_for_content_model(user_data_path, item_data_path, reviews_data_path):
+def pre_process_for_content_model(user_data_path, item_data_path, reviews_data_path, save_df=False):
+    print('started preprocessing for content model') # todo: remove before submission
     users_to_features_hash, items_to_features_hash = create_hashmaps(user_data_path, item_data_path)
     # Reviews - concat review to user id and item id
     X_Y_true = list()
@@ -474,8 +477,9 @@ def pre_process_for_content_model(user_data_path, item_data_path, reviews_data_p
     new_feature_df = pd.DataFrame(X_Y_true, columns=['if1', 'if2', 'if3', 'if4', 'if5', 'uf1', 'uf2', 'uf3', 'uf4', 'uf5', 'uf6', 'Stars'])
     X = X_Y_true[:, :-1]
     Y = X_Y_true[:, -1]
-
-    # new_feature_df.to_csv('content_df.csv')
+    print('started preprocessing for content model') # todo: remove before submission
+    if save_df:
+        new_feature_df.to_csv('content_df.csv')
     return X, Y, users_to_features_hash, items_to_features_hash
 
 
