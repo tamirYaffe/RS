@@ -407,10 +407,10 @@ def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, ea
 
 
 class ContentModel(ABSModelInterface):
-    def __init__(self, items_hashmap, users_hashmap):
+    def __init__(self, items_hashmap, users_hashmap, model=RandomForestRegressor(n_estimators=10)):
         self.users_hashmap = users_hashmap
         self.items_hashmap = items_hashmap
-        self.model = RandomForestRegressor(n_estimators=10)
+        self.model = model
         self.trained = False
 
     def train(self, x_train, y_train):
@@ -423,9 +423,7 @@ class ContentModel(ABSModelInterface):
         prediction = self.model.predict(x_to_pred)
         return prediction
 
-
-def pre_process_for_content_model(user_data_path, item_data_path, reviews_data_path):
-    # item_data_gen = load(item_data_path)
+def create_hashmaps(user_data_path, item_data_path):
     le = preprocessing.LabelEncoder()
     scaler = preprocessing.MinMaxScaler()
 
@@ -450,8 +448,11 @@ def pre_process_for_content_model(user_data_path, item_data_path, reviews_data_p
     user_data_df['average_stars'] = user_data_df['average_stars'].values.reshape(-1, 1).astype(float)
     users_to_features_hash = user_data_df.set_index('user_id').T.to_dict('list')
 
+    return users_to_features_hash, items_to_features_hash
 
-    # Reviews section - concat review to user id and item id
+def pre_process_for_content_model(user_data_path, item_data_path, reviews_data_path):
+    users_to_features_hash, items_to_features_hash = create_hashmaps(user_data_path, item_data_path)
+    # Reviews - concat review to user id and item id
     X_Y_true = list()
     Y_true = list()
     review_gen = load(reviews_data_path)
@@ -471,10 +472,25 @@ def pre_process_for_content_model(user_data_path, item_data_path, reviews_data_p
     X_Y_true = np.array(X_Y_true)
     # Y_true = np.array(Y_true)
     new_feature_df = pd.DataFrame(X_Y_true, columns=['if1', 'if2', 'if3', 'if4', 'if5', 'uf1', 'uf2', 'uf3', 'uf4', 'uf5', 'uf6', 'Stars'])
-    new_feature_df.to_csv('content_df.csv')
+    X = X_Y_true[:, :-1]
+    Y = X_Y_true[:, -1]
 
-def TrainContentModel():
-    pass
+    # new_feature_df.to_csv('content_df.csv')
+    return X, Y, users_to_features_hash, items_to_features_hash
+
+
+def TrainContentModel(train_data_path, user_data_path, item_data_path):
+    X, Y, users_to_features_hash, items_to_features_hash = pre_process_for_content_model(user_data_path=user_data_path,
+                                                                                         item_data_path=item_data_path,
+                                                                                         reviews_data_path=train_data_path)
+    cm = ContentModel(items_hashmap=items_to_features_hash,
+                      users_hashmap=users_to_features_hash)
+
+    cm.train(x_train=X, y_train=Y)
+
+    print(validation(cm, validation_gen=load('Data/userTestData.csv')))# todo: remove before submission
+
+    return cm
 
 
 def TrainHybridModel():
@@ -484,7 +500,6 @@ def TrainHybridModel():
 if __name__ == '__main__':
     # train_data_path = "Data/userTrainDataSmall.csv"
     train_data_path = "Data/userTrainData.csv"
-
     # TrainImprovedModel(latent_features_size=3,
     #                    train_data_path=train_data_path,
     #                    max_ephocs=50,
@@ -497,4 +512,5 @@ if __name__ == '__main__':
     # user_data = load('Data/yelp_user.csv')
     # item_data = load('Data/yelp_business.csv')
 
-    pre_process_for_content_model(user_data_path='Data/yelp_user.csv', item_data_path='Data/yelp_business.csv', reviews_data_path=train_data_path)
+    # pre_process_for_content_model(user_data_path='Data/yelp_user.csv', item_data_path='Data/yelp_business.csv', reviews_data_path=train_data_path)
+    TrainContentModel(train_data_path=train_data_path, user_data_path='Data/yelp_user.csv', item_data_path='Data/yelp_business.csv')
