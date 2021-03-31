@@ -3,7 +3,7 @@ from abc import ABC
 import numpy as np
 import pandas as pd
 import csv
-from sklearn.metrics import mean_squared_error, mean_squared_log_error
+from sklearn.metrics import mean_squared_error
 from sklearn.ensemble import RandomForestRegressor
 from sklearn import preprocessing
 import math
@@ -120,6 +120,7 @@ class BaseSVDModel(ABSModelInterface):
     def correction(self, error, user_id, item_id):
         if abs(error) < self.error_threshold:
             return
+
         self.BU[user_id] = self.BU[user_id] + self.lamda * (error - self.gamma * self.BU[user_id])
         self.BI[item_id] = self.BI[item_id] + self.lamda * (error - self.gamma * self.BI[item_id])
 
@@ -374,7 +375,7 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_
         train_model(model, train_gen=load(train_split_path))
         # calculate RMSE over the validation, stop when is larger from prev iteration.
         temp_rmse, temp_rmsle = validation(model, validation_gen=load(valid_split_path))
-        print("Epoch #: {}, RMSE: {}, RMSLE: {}".format(curr_epoch, temp_rmse, temp_rmsle))
+        print("Epoch #: {}, RMSE: {}, ACC: {}".format(curr_epoch, temp_rmse, temp_rmsle))
         if early_stopping and (curr_rmse - temp_rmse) < 0.000001:  # if negative the model is becoming worse
             break
         curr_rmse = temp_rmse
@@ -382,12 +383,12 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_
     return model, curr_rmse, curr_epoch
 
 
-def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, early_stopping=True):
+def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, early_stopping=True, lamda=0.002,
+                       gamma1=0.05, gamma2 = 0.015):
     """
     Train an improved model from the prev SVD model, by the paper in https://dl.acm.org/doi/pdf/10.1145/1401890.1401944.
     """
     items_ids, users_ids, ranking_mean, ru_dict = get_unique_users_and_items(train_data_path)
-    model = {}
 
     # split train_data into train and validation.
     train_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['train_split.csv'])
@@ -397,9 +398,11 @@ def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, ea
                                     train_split_path=train_split_path,
                                     valid_split_path=valid_split_path,
                                     validation_percent=0.2)
-    lamda = 0.007
-    gamma1 = 0.005
-    gamma2 = 0.015
+
+    # lamda = 0.007
+    # gamma1 = 0.005
+    # gamma2 = 0.015
+
     # randomly initialize U, b_u, b_i, p_u, q_i.
     model = SVDPlusModel(latent_features_size=latent_features_size,
                          users_ids=users_ids,
@@ -418,7 +421,7 @@ def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, ea
         train_model(model, train_gen=load(train_split_path))
         # calculate RMSE over the validation, stop when is larger from prev iteration.
         temp_rmse, temp_rmsle = validation(model, validation_gen=load(valid_split_path))
-        print("Epoch #: {}, RMSE: {}, RMSLE: {}".format(curr_epoch, temp_rmse, temp_rmsle))
+        print("Epoch #: {}, RMSE: {}, ACC: {}".format(curr_epoch, temp_rmse, temp_rmsle))
         if early_stopping and (curr_rmse - temp_rmse) < 0.000001:  # if negative the model is becoming worse
             break
         curr_rmse = temp_rmse
@@ -535,7 +538,7 @@ if __name__ == '__main__':
     # train_data_path = "Data/userTrainData.csv"
     model, curr_rmse, curr_epoch = TrainImprovedModel(latent_features_size=3,
                                                       train_data_path=train_data_path,
-                                                      max_ephocs=5,
+                                                      max_ephocs=50,
                                                       early_stopping=True)
     pickle.dump(model, open("svd_plus_model.pickle", "wb"))
     # model = pickle.load(open("svd_plus_model.pickle", "rb"))
