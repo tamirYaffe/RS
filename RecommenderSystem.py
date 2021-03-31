@@ -276,6 +276,8 @@ def validation(model, validation_gen):
      finished.
     :return float, RMSE over validation set. uses implemented RMSE function.
     """
+    print('started validation')  # todo: remove before submission
+
     single_record = next(validation_gen)
     predicted_rankings = []
     true_rankings = []
@@ -290,6 +292,7 @@ def validation(model, validation_gen):
         except StopIteration:
             break
 
+    print('finished validation')  # todo: remove before submission
     return RMSE(true_ranks=true_rankings, predicted_ranks=predicted_rankings), accuracyEval(true_rankings,
                                                                                             predicted_rankings)
 
@@ -407,7 +410,7 @@ def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, ea
 
 
 class ContentModel(ABSModelInterface):
-    def __init__(self, items_hashmap, users_hashmap, model=RandomForestRegressor(n_estimators=10)):
+    def __init__(self, items_hashmap, users_hashmap, model=RandomForestRegressor(n_estimators=100)):
         self.users_hashmap = users_hashmap
         self.items_hashmap = items_hashmap
         self.model = model
