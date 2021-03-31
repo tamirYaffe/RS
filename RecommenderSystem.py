@@ -59,10 +59,8 @@ def accuracyEval(true_ranks, predicted_ranks):
     return rmsle
 
 
-# todo: understand the input for this function
-def PredictRating(model, data_to_predict):
-    print(model, data_to_predict)
-    pass
+def PredictRating(model, user_id, item_id):
+    return model.predict(user_id, item_id)
 
 
 class ABSModelInterface(ABC):
