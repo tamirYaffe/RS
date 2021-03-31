@@ -430,7 +430,7 @@ def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, ea
 
 
 class ContentModel(ABSModelInterface):
-    def __init__(self, items_hashmap, users_hashmap, model=RandomForestRegressor(n_estimators=100)):
+    def __init__(self, items_hashmap, users_hashmap, model=RandomForestRegressor(n_estimators=10)):
         self.users_hashmap = users_hashmap
         self.items_hashmap = items_hashmap
         self.model = model
@@ -509,7 +509,7 @@ def pre_process_for_content_model(user_data_path, item_data_path, reviews_data_p
                                            'Stars'])
     X = X_Y_true[:, :-1]
     Y = X_Y_true[:, -1]
-    print('started preprocessing for content model')  # todo: remove before submission
+    print('finished preprocessing for content model')  # todo: remove before submission
     if save_df:
         new_feature_df.to_csv('content_df.csv')
     return X, Y, users_to_features_hash, items_to_features_hash
@@ -529,19 +529,75 @@ def TrainContentModel(train_data_path, user_data_path, item_data_path):
     return cm
 
 
-def TrainHybridModel():
-    pass
+class HybridModel(ContentModel):
+    def __init__(self, items_hashmap, users_hashmap, svd_model, model=RandomForestRegressor(n_estimators=10)):
+        super().__init__(items_hashmap, users_hashmap, model)
+        self.svd_model = svd_model
+
+    def predict(self, user_id, item_id):
+        assert self.trained
+        svd_prediction = self.svd_model.predict(user_id, item_id)
+        x_to_pred = self.users_hashmap[user_id] + self.items_hashmap[item_id] + [svd_prediction]
+        prediction = self.model.predict(np.array(x_to_pred).reshape(1, len(x_to_pred)))
+        return prediction
+
+
+def pre_process_for_Hybrid_model(user_data_path, item_data_path, reviews_data_path, svd_model, save_df=False):
+    print('started preprocessing for hybrid model')  # todo: remove before submission
+    users_to_features_hash, items_to_features_hash = create_hashmaps(user_data_path, item_data_path)
+    # Reviews - concat review to user id and item id
+    X_Y_true = list()
+    review_gen = load(reviews_data_path)
+    single_record = next(review_gen)
+    while single_record is not None:
+        curr_user_id = single_record[1]
+        curr_item_id = single_record[2]
+        curr_true_rank = float(single_record[3])
+        curr_user_features = users_to_features_hash[curr_user_id]
+        curr_item_features = items_to_features_hash[curr_item_id]
+        curr_svd_predicted_rank = svd_model.predict(curr_user_id, curr_item_id)
+        X_Y_true.append(np.array(curr_user_features + curr_item_features + [curr_svd_predicted_rank]
+                                 + [curr_true_rank]))
+        try:
+            single_record = next(review_gen)
+        except StopIteration as e:
+            break
+
+    X_Y_true = np.array(X_Y_true)
+    new_feature_df = pd.DataFrame(X_Y_true,
+                                  columns=['if1', 'if2', 'if3', 'if4', 'if5', 'uf1', 'uf2', 'uf3', 'uf4', 'uf5', 'uf6',
+                                           'sf7', 'Stars'])
+    X = X_Y_true[:, :-1]
+    Y = X_Y_true[:, -1]
+    print('finished preprocessing for hybrid model')  # todo: remove before submission
+    if save_df:
+        new_feature_df.to_csv('hybrid_df.csv')
+    return X, Y, users_to_features_hash, items_to_features_hash
+
+
+def TrainHybridModel(train_data_path, user_data_path, item_data_path, svd_model):
+    X, Y, users_to_features_hash, items_to_features_hash = pre_process_for_Hybrid_model(user_data_path=user_data_path,
+                                                                                        item_data_path=item_data_path,
+                                                                                        reviews_data_path=train_data_path,
+                                                                                        svd_model=svd_model)
+
+    hybrid_model = HybridModel(items_to_features_hash, users_to_features_hash, svd_model)
+
+    hybrid_model.train(x_train=X, y_train=Y)
+
+    print(validation(hybrid_model, validation_gen=load('Data/userTestData.csv')))  # todo: remove before submission
+
+    return hybrid_model
 
 
 if __name__ == '__main__':
     train_data_path = "Data/userTrainDataSmall.csv"
     # train_data_path = "Data/userTrainData.csv"
-    model, curr_rmse, curr_epoch = TrainImprovedModel(latent_features_size=3,
-                                                      train_data_path=train_data_path,
-                                                      max_ephocs=50,
-                                                      early_stopping=True)
-    pickle.dump(model, open("svd_plus_model.pickle", "wb"))
-    # model = pickle.load(open("svd_plus_model.pickle", "rb"))
+    # model, curr_rmse, curr_epoch = TrainImprovedModel(latent_features_size=3,
+    #                                                   train_data_path=train_data_path,
+    #                                                   max_ephocs=50,
+    #                                                   early_stopping=True)
+    # pickle.dump(model, open("svd_plus_model.pickle", "wb"))
 
     # TrainBaseModel(latent_features_size=3,
     #                train_data_path=train_data_path,
@@ -551,4 +607,8 @@ if __name__ == '__main__':
     # item_data = load('Data/yelp_business.csv')
 
     # pre_process_for_content_model(user_data_path='Data/yelp_user.csv', item_data_path='Data/yelp_business.csv', reviews_data_path=train_data_path)
-    # TrainContentModel(train_data_path=train_data_path, user_data_path='Data/yelp_user.csv', item_data_path='Data/yelp_business.csv')
+    TrainContentModel(train_data_path=train_data_path, user_data_path='Data/yelp_user.csv', item_data_path='Data/yelp_business.csv')
+
+    # model = pickle.load(open("svd_plus_model.pickle", "rb"))
+    # TrainHybridModel(train_data_path=train_data_path, user_data_path='Data/yelp_user.csv',
+    #                  item_data_path='Data/yelp_business.csv', svd_model=model)
