@@ -374,10 +374,16 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_
 
     while curr_epoch <= max_ephocs:
         # train the model over entire training set
-        train_model(model, train_gen=load(train_split_path))
+        train_acc = train_model(model, train_gen=load(train_split_path))
         # calculate RMSE over the validation, stop when is larger from prev iteration.
-        temp_rmse, temp_rmsle = validation(model, validation_gen=load(valid_split_path))
-        print("Epoch #: {}, RMSE: {}, ACC: {}".format(curr_epoch, temp_rmse, temp_rmsle))
+        temp_rmse, valid_acc = validation(model, validation_gen=load(valid_split_path))
+        log_result = "Epoch #: {}, RMSE: {}, train_ACC: {}, valid_ACC: {} \n".format(curr_epoch,
+                                                                                     temp_rmse, train_acc, valid_acc)
+        with open('svd_log.txt', 'a+') as log_file:
+            log_file.write(log_result)
+
+        print(log_result)
+
         if early_stopping and (curr_rmse - temp_rmse) < 0.000001:  # if negative the model is becoming worse
             break
         curr_rmse = temp_rmse
@@ -608,16 +614,16 @@ def TrainHybridModel(train_data_path, user_data_path, item_data_path, svd_model)
 if __name__ == '__main__':
     # train_data_path = "Data/userTrainDataSmall.csv"
     train_data_path = "Data/userTrainData.csv"
-    model, curr_rmse, curr_epoch = TrainImprovedModel(latent_features_size=3,
-                                                      train_data_path=train_data_path,
-                                                      max_ephocs=50,
-                                                      early_stopping=True)
-    pickle.dump(model, open("svd_plus_model.pickle", "wb"))
+    # model, curr_rmse, curr_epoch = TrainImprovedModel(latent_features_size=3,
+    #                                                   train_data_path=train_data_path,
+    #                                                   max_ephocs=50,
+    #                                                   early_stopping=True)
+    model, curr_rmse, curr_epoch = TrainBaseModel(latent_features_size=3,
+                                                  train_data_path=train_data_path,
+                                                  max_ephocs=50,
+                                                  early_stopping=True)
+    pickle.dump(model, open("svd_model.pickle", "wb"))
 
-    # TrainBaseModel(latent_features_size=3,
-    #                train_data_path=train_data_path,
-    #                max_ephocs=50,
-    #                early_stopping=True)
     # user_data = load('Data/yelp_user.csv')
     # item_data = load('Data/yelp_business.csv')
 
