@@ -7,7 +7,7 @@ from sklearn.metrics import mean_squared_error, mean_squared_log_error
 from sklearn.ensemble import RandomForestRegressor
 from sklearn import preprocessing
 import math
-
+import pickle
 
 np.random.seed(420)
 
@@ -46,17 +46,19 @@ def RMSE(true_ranks, predicted_ranks):
     # print(true_ranks, predicted_ranks)
 
 
-def accuracyEval(true_ranks, predicted_ranks):
+def accuracyEval(true_ranks, predicted_ranks, threshold: float = 1.) -> float:
     """
-    Calculate the Root Mean Squared Log Error (RMSLE) for the ranking.
+    Calculate a flavor of accuracy - for each <prediction,true rank> pair, if
+    the absolute difference between the pair is smaller than the given threshold,
+    the prediction is considered a correct prediction, otherwise false.
+    then, the classic accuracy score is calculated (T/T+F) and returned.
     :param true_ranks: actual ranking.
     :param predicted_ranks: the model predicted ranking.
-    :return:
+    :param threshold: float
+    :return: float, accuracy score
     """
-    if sum([x < 0 for x in predicted_ranks]) > 0:
-        return -1
-    rmsle = np.sqrt(mean_squared_log_error(true_ranks, predicted_ranks))
-    return rmsle
+    acc = sum(list(map(lambda x, y: abs(x - y) < threshold, true_ranks, predicted_ranks))) / len(true_ranks)
+    return acc
 
 
 def PredictRating(model, user_id, item_id):
@@ -92,11 +94,22 @@ class BaseSVDModel(ABSModelInterface):
     def predict(self, user_id, item_id):
         user_latent_vec = self.P.get(user_id, np.zeros(self.latent_features_size))
         item_latent_vec = self.Q.get(item_id, np.zeros(self.latent_features_size))
+
         Bi = self.BI.get(item_id, 0)
         Bu = self.BU.get(user_id, 0)
 
-        pred_val = self.MU + Bi + Bu + np.dot(user_latent_vec, item_latent_vec)
-        pred_val = pred_val[0]
+        if Bu == 0 and Bi == 0:
+            pred_val = self.MU
+
+        elif Bu == 0:
+            pred_val = self.MU + Bi[0]
+
+        elif Bi == 0:
+            pred_val = self.MU + Bu[0]
+
+        else:
+            pred_val = self.MU + Bi[0] + Bu[0] + np.dot(user_latent_vec, item_latent_vec)
+
         if pred_val > 5:
             pred_val = 5
         if pred_val < 1:
@@ -139,19 +152,25 @@ class SVDPlusModel(ABSModelInterface):
     def predict(self, user_id, item_id):
         user_latent_vec = self.P.get(user_id, np.zeros(self.latent_features_size))
         item_latent_vec = self.Q.get(item_id, np.zeros(self.latent_features_size))
+
         Bi = self.BI.get(item_id, 0)
         Bu = self.BU.get(user_id, 0)
-
         Ru = self.RU.get(user_id, [])
-        if len(Ru) == 0:
-            pred_val = self.MU + Bi
+
+        if Bu == 0 and Bi == 0:
+            pred_val = self.MU
+
+        elif Bu == 0:
+            pred_val = self.MU + Bi[0]
+
+        elif Bi == 0:
+            pred_val = self.MU + Bu[0]
 
         else:
             y_i = np.array(list(map(lambda x: self.Y[x], self.RU[user_id]))).sum()
             # y_i = np.array([self.Y[it_id] for it_id in self.RU[user_id]]).sum()
-            pred_val = self.MU + Bi + Bu + np.dot(item_latent_vec, (user_latent_vec + y_i / math.sqrt(len(Ru))))
+            pred_val = self.MU + Bi[0] + Bu[0] + np.dot(item_latent_vec, (user_latent_vec + y_i / math.sqrt(len(Ru))))
 
-        pred_val = pred_val[0]
         if pred_val > 5:
             pred_val = 5
         if pred_val < 1:
@@ -170,7 +189,7 @@ class SVDPlusModel(ABSModelInterface):
 
         temp_qi = self.Q[item_id].copy()
         self.Q[item_id] = self.Q[item_id] + self.lamda * (
-                    error * (self.P[user_id] + y_i / math.sqrt(len(self.RU[user_id]))) - self.gamma2 * self.Q[item_id])
+                error * (self.P[user_id] + y_i / math.sqrt(len(self.RU[user_id]))) - self.gamma2 * self.Q[item_id])
         self.P[user_id] = self.P[user_id] + self.lamda * (error * temp_qi - self.gamma2 * self.P[user_id])
 
         for y_item_id in self.RU[user_id]:
@@ -415,10 +434,10 @@ class ContentModel(ABSModelInterface):
         self.trained = False
 
     def train(self, x_train, y_train):
-        print('started training') # todo: remove before submission
+        print('started training')  # todo: remove before submission
         self.model.fit(x_train, y_train)
         self.trained = True
-        print('finished training') # todo: remove before submission
+        print('finished training')  # todo: remove before submission
 
     def predict(self, user_id, item_id):
         assert self.trained
@@ -426,12 +445,15 @@ class ContentModel(ABSModelInterface):
         prediction = self.model.predict(np.array(x_to_pred).reshape(1, len(x_to_pred)))
         return prediction
 
+
 def create_hashmaps(user_data_path, item_data_path):
     le = preprocessing.LabelEncoder()
     scaler = preprocessing.MinMaxScaler()
 
     item_data_df = pd.read_csv(item_data_path)
-    item_data_df.drop(axis=1, labels=['name', 'neighborhood','address', 'postal_code', 'latitude', 'longitude', 'is_open'], inplace=True)
+    item_data_df.drop(axis=1,
+                      labels=['name', 'neighborhood', 'address', 'postal_code', 'latitude', 'longitude', 'is_open'],
+                      inplace=True)
     item_data_df['categories'] = [len(x.split(';')) for x in item_data_df['categories']]
 
     item_data_df['city'] = le.fit_transform(item_data_df['city'].astype(str))
@@ -441,7 +463,10 @@ def create_hashmaps(user_data_path, item_data_path):
     items_to_features_hash = item_data_df.set_index('business_id').T.to_dict('list')
 
     user_data_df = pd.read_csv(user_data_path)
-    columns_to_drop = ['name', 'yelping_since', 'friends', 'elite', 'compliment_hot', 'compliment_more', 'compliment_profile', 'compliment_cute', 'compliment_list', 'compliment_note', 'compliment_plain', 'compliment_cool', 'compliment_funny', 'compliment_writer', 'compliment_photos']
+    columns_to_drop = ['name', 'yelping_since', 'friends', 'elite', 'compliment_hot', 'compliment_more',
+                       'compliment_profile', 'compliment_cute', 'compliment_list', 'compliment_note',
+                       'compliment_plain', 'compliment_cool', 'compliment_funny', 'compliment_writer',
+                       'compliment_photos']
     user_data_df.drop(axis=1, labels=columns_to_drop, inplace=True)
     user_data_df['review_count'] = scaler.fit_transform(user_data_df['review_count'].values.reshape(-1, 1).astype(int))
     user_data_df['useful'] = scaler.fit_transform(user_data_df['useful'].values.reshape(-1, 1).astype(int))
@@ -453,8 +478,9 @@ def create_hashmaps(user_data_path, item_data_path):
 
     return users_to_features_hash, items_to_features_hash
 
+
 def pre_process_for_content_model(user_data_path, item_data_path, reviews_data_path, save_df=False):
-    print('started preprocessing for content model') # todo: remove before submission
+    print('started preprocessing for content model')  # todo: remove before submission
     users_to_features_hash, items_to_features_hash = create_hashmaps(user_data_path, item_data_path)
     # Reviews - concat review to user id and item id
     X_Y_true = list()
@@ -467,7 +493,7 @@ def pre_process_for_content_model(user_data_path, item_data_path, reviews_data_p
         curr_true_rank = float(single_record[3])
         curr_user_features = users_to_features_hash[curr_user_id]
         curr_item_features = items_to_features_hash[curr_item_id]
-        X_Y_true.append(np.array(curr_user_features+curr_item_features+[curr_true_rank]))
+        X_Y_true.append(np.array(curr_user_features + curr_item_features + [curr_true_rank]))
         # Y_true.append(curr_true_rank)
         try:
             single_record = next(review_gen)
@@ -475,10 +501,12 @@ def pre_process_for_content_model(user_data_path, item_data_path, reviews_data_p
             break
     X_Y_true = np.array(X_Y_true)
     # Y_true = np.array(Y_true)
-    new_feature_df = pd.DataFrame(X_Y_true, columns=['if1', 'if2', 'if3', 'if4', 'if5', 'uf1', 'uf2', 'uf3', 'uf4', 'uf5', 'uf6', 'Stars'])
+    new_feature_df = pd.DataFrame(X_Y_true,
+                                  columns=['if1', 'if2', 'if3', 'if4', 'if5', 'uf1', 'uf2', 'uf3', 'uf4', 'uf5', 'uf6',
+                                           'Stars'])
     X = X_Y_true[:, :-1]
     Y = X_Y_true[:, -1]
-    print('started preprocessing for content model') # todo: remove before submission
+    print('started preprocessing for content model')  # todo: remove before submission
     if save_df:
         new_feature_df.to_csv('content_df.csv')
     return X, Y, users_to_features_hash, items_to_features_hash
@@ -493,7 +521,7 @@ def TrainContentModel(train_data_path, user_data_path, item_data_path):
 
     cm.train(x_train=X, y_train=Y)
 
-    print(validation(cm, validation_gen=load('Data/userTestData.csv')))# todo: remove before submission
+    print(validation(cm, validation_gen=load('Data/userTestData.csv')))  # todo: remove before submission
 
     return cm
 
@@ -505,10 +533,12 @@ def TrainHybridModel():
 if __name__ == '__main__':
     train_data_path = "Data/userTrainDataSmall.csv"
     # train_data_path = "Data/userTrainData.csv"
-    # TrainImprovedModel(latent_features_size=3,
-    #                    train_data_path=train_data_path,
-    #                    max_ephocs=50,
-    #                    early_stopping=True)
+    model, curr_rmse, curr_epoch = TrainImprovedModel(latent_features_size=3,
+                                                      train_data_path=train_data_path,
+                                                      max_ephocs=5,
+                                                      early_stopping=True)
+    pickle.dump(model, open("svd_plus_model.pickle", "wb"))
+    # model = pickle.load(open("svd_plus_model.pickle", "rb"))
 
     # TrainBaseModel(latent_features_size=3,
     #                train_data_path=train_data_path,
@@ -518,4 +548,4 @@ if __name__ == '__main__':
     # item_data = load('Data/yelp_business.csv')
 
     # pre_process_for_content_model(user_data_path='Data/yelp_user.csv', item_data_path='Data/yelp_business.csv', reviews_data_path=train_data_path)
-    TrainContentModel(train_data_path=train_data_path, user_data_path='Data/yelp_user.csv', item_data_path='Data/yelp_business.csv')
+    # TrainContentModel(train_data_path=train_data_path, user_data_path='Data/yelp_user.csv', item_data_path='Data/yelp_business.csv')
