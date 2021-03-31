@@ -242,7 +242,7 @@ def split_and_save_train_validation(train_path, train_split_path, valid_split_pa
     generator = load(train_path)
     single_record = next(generator)
     while single_record is not None:
-        if valid_size <= train_size * validation_percent:
+        if valid_size <= (train_size + valid_size) * validation_percent:
             if np.random.rand(1)[0] > validation_percent:
                 val_file.writerow(single_record)
                 valid_size += 1
@@ -446,6 +446,10 @@ class ContentModel(ABSModelInterface):
         assert self.trained
         x_to_pred = self.users_hashmap[user_id] + self.items_hashmap[item_id]
         prediction = self.model.predict(np.array(x_to_pred).reshape(1, len(x_to_pred)))
+        if prediction > 5:
+            prediction = 5
+        if prediction < 1:
+            prediction = 1
         return prediction
 
 
@@ -539,6 +543,10 @@ class HybridModel(ContentModel):
         svd_prediction = self.svd_model.predict(user_id, item_id)
         x_to_pred = self.users_hashmap[user_id] + self.items_hashmap[item_id] + [svd_prediction]
         prediction = self.model.predict(np.array(x_to_pred).reshape(1, len(x_to_pred)))
+        if prediction > 5:
+            prediction = 5
+        if prediction < 1:
+            prediction = 1
         return prediction
 
 
