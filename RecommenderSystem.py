@@ -256,10 +256,11 @@ def split_and_save_train_validation(train_path, train_split_path, valid_split_pa
     print('val:{}\ntrain:{}'.format(valid_size, train_size))
 
 
-def train_model(model, train_gen):
+def train_model(model, train_gen, learning_decay=0.97):
     """
     trains a model which implements the ABSModelInterface class.
     this function can and is used for single epoch training round.
+    :param learning_decay: learning decay
     :param model: the model to train.
     :param train_gen: a generator which iterates through all records to train on. throws StopIteration when finished.
     """
@@ -280,8 +281,9 @@ def train_model(model, train_gen):
         except StopIteration:
             break
     acc = sum(list(map(lambda x, y: abs(x - y) < 1, true_rankings, predicted_rankings))) / len(true_rankings)
-    # model.lamda *= 0.9
+    model.lamda *= learning_decay
     print("training acc:{}".format(acc))
+    return acc
 
 
 def validation(model, validation_gen):
@@ -384,7 +386,7 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_
 
 
 def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, early_stopping=True, lamda=0.002,
-                       gamma1=0.05, gamma2 = 0.015):
+                       gamma1=0.05, gamma2=0.015):
     """
     Train an improved model from the prev SVD model, by the paper in https://dl.acm.org/doi/pdf/10.1145/1401890.1401944.
     """
@@ -418,10 +420,15 @@ def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, ea
 
     while curr_epoch <= max_ephocs:
         # train the model over entire training set
-        train_model(model, train_gen=load(train_split_path))
+        acc = train_model(model, train_gen=load(train_split_path))
         # calculate RMSE over the validation, stop when is larger from prev iteration.
         temp_rmse, temp_rmsle = validation(model, validation_gen=load(valid_split_path))
-        print("Epoch #: {}, RMSE: {}, ACC: {}".format(curr_epoch, temp_rmse, temp_rmsle))
+        log_result = "Epoch #: {}, RMSE: {}, train_ACC: {}, valid_ACC: {} \n".format(curr_epoch,
+                                                                                     temp_rmse, acc, temp_rmsle)
+        with open('log.txt', 'a+') as log_file:
+            log_file.write(log_result)
+
+        print(log_result)
         if early_stopping and (curr_rmse - temp_rmse) < 0.000001:  # if negative the model is becoming worse
             break
         curr_rmse = temp_rmse
@@ -599,13 +606,13 @@ def TrainHybridModel(train_data_path, user_data_path, item_data_path, svd_model)
 
 
 if __name__ == '__main__':
-    train_data_path = "Data/userTrainDataSmall.csv"
-    # train_data_path = "Data/userTrainData.csv"
-    # model, curr_rmse, curr_epoch = TrainImprovedModel(latent_features_size=3,
-    #                                                   train_data_path=train_data_path,
-    #                                                   max_ephocs=50,
-    #                                                   early_stopping=True)
-    # pickle.dump(model, open("svd_plus_model.pickle", "wb"))
+    # train_data_path = "Data/userTrainDataSmall.csv"
+    train_data_path = "Data/userTrainData.csv"
+    model, curr_rmse, curr_epoch = TrainImprovedModel(latent_features_size=3,
+                                                      train_data_path=train_data_path,
+                                                      max_ephocs=50,
+                                                      early_stopping=True)
+    pickle.dump(model, open("svd_plus_model.pickle", "wb"))
 
     # TrainBaseModel(latent_features_size=3,
     #                train_data_path=train_data_path,
@@ -615,7 +622,7 @@ if __name__ == '__main__':
     # item_data = load('Data/yelp_business.csv')
 
     # pre_process_for_content_model(user_data_path='Data/yelp_user.csv', item_data_path='Data/yelp_business.csv', reviews_data_path=train_data_path)
-    TrainContentModel(train_data_path=train_data_path, user_data_path='Data/yelp_user.csv', item_data_path='Data/yelp_business.csv')
+    # TrainContentModel(train_data_path=train_data_path, user_data_path='Data/yelp_user.csv', item_data_path='Data/yelp_business.csv')
 
     # model = pickle.load(open("svd_plus_model.pickle", "rb"))
     # TrainHybridModel(train_data_path=train_data_path, user_data_path='Data/yelp_user.csv',
