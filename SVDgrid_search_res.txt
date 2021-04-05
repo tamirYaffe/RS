@@ -1,0 +1,12 @@
+rmse: 1.2153195012992426, last_epoch: 51, Gamma: 0.01, Lambda: 0.002
+rmse: 1.2116139172060323, last_epoch: 51, Gamma: 0.05, Lambda: 0.002
+rmse: 1.2095737624760607, last_epoch: 51, Gamma: 0.08, Lambda: 0.002
+rmse: 1.2088603284553745, last_epoch: 51, Gamma: 0.1, Lambda: 0.002
+rmse: 1.2167224655183522, last_epoch: 23, Gamma: 0.01, Lambda: 0.005
+rmse: 1.2088935735879955, last_epoch: 27, Gamma: 0.05, Lambda: 0.005
+rmse: 1.204530549618313, last_epoch: 31, Gamma: 0.1, Lambda: 0.005
+rmse: 1.210356147366695, last_epoch: 13, Gamma: 0.05, Lambda: 0.01
+rmse: 1.2073626763307572, last_epoch: 15, Gamma: 0.08, Lambda: 0.01
+rmse: 1.2096603207933603, last_epoch: 9, Gamma: 0.05, Lambda: 0.015
+rmse: 1.2071427779969806, last_epoch: 10, Gamma: 0.08, Lambda: 0.015
+rmse: 1.2052396219963564, last_epoch: 10, Gamma: 0.1, Lambda: 0.015
