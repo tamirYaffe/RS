@@ -620,6 +620,16 @@ def TrainHybridModel(train_data_path, user_data_path, item_data_path, svd_model)
     return hybrid_model
 
 
+def load_model(path_to_model: str) -> ABSModelInterface:
+    """
+    loads the pickled model stored in the given path parameter.
+    :param path_to_model: str, absolute path to pickle file.
+    return: ABSModelInterface class implementing object.
+    """
+    model = pickle.load(open("svd_plus_model.pickle", "rb"))
+    return model
+
+
 if __name__ == '__main__':
     start_time = time.time()
     # train_data_path = "Data/userTrainDataSmall.csv"
