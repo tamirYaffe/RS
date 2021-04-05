@@ -1,4 +1,5 @@
 import os
+import time
 from abc import ABC
 import numpy as np
 import pandas as pd
@@ -40,10 +41,7 @@ def RMSE(true_ranks, predicted_ranks):
     :param predicted_ranks: the model predicted ranking.
     :return:
     """
-    acc = sum(list(map(lambda x, y: abs(x - y) < 1, true_ranks, predicted_ranks))) / len(true_ranks)
-    print("validation acc:{}".format(acc))
     return mean_squared_error(true_ranks, predicted_ranks, squared=False)
-    # print(true_ranks, predicted_ranks)
 
 
 def accuracyEval(true_ranks, predicted_ranks, threshold: float = 1.) -> float:
@@ -282,7 +280,6 @@ def train_model(model, train_gen, learning_decay=0.97):
             break
     acc = sum(list(map(lambda x, y: abs(x - y) < 1, true_rankings, predicted_rankings))) / len(true_rankings)
     model.lamda *= learning_decay
-    print("training acc:{}".format(acc))
     return acc
 
 
@@ -350,7 +347,8 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_
     # print(latent_features_size, len(train_data_path))
     items_ids, users_ids, ranking_mean, ru_dict = get_unique_users_and_items(train_data_path)
     model = {}
-
+    lamda = 0.005
+    gamma = 0.05
     # split train_data into train and validation.
     train_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['train_split.csv'])
     valid_split_path = os.sep.join(train_data_path.split(os.sep)[:-1] + ['valid_split.csv'])
@@ -374,16 +372,19 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_
 
     while curr_epoch <= max_ephocs:
         # train the model over entire training set
-        train_acc = train_model(model, train_gen=load(train_split_path))
+        acc = train_model(model, train_gen=load(train_split_path))
         # calculate RMSE over the validation, stop when is larger from prev iteration.
-        temp_rmse, valid_acc = validation(model, validation_gen=load(valid_split_path))
+        temp_rmse, temp_rmsle = validation(model, validation_gen=load(valid_split_path))
+
         log_result = "Epoch #: {}, RMSE: {}, train_ACC: {}, valid_ACC: {} \n".format(curr_epoch,
-                                                                                     temp_rmse, train_acc, valid_acc)
-        with open('svd_log.txt', 'a+') as log_file:
+                                                                                     temp_rmse, acc, temp_rmsle)
+        model_name = "svd_model_" + str(lamda)
+        with open("Results/log_" + model_name + ".txt", 'a+') as log_file:
             log_file.write(log_result)
+        # save model
+        pickle.dump(model, open("Models/" + model_name + ".pickle", "wb"))
 
         print(log_result)
-
         if early_stopping and (curr_rmse - temp_rmse) < 0.000001:  # if negative the model is becoming worse
             break
         curr_rmse = temp_rmse
@@ -406,10 +407,14 @@ def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, ea
                                     train_split_path=train_split_path,
                                     valid_split_path=valid_split_path,
                                     validation_percent=0.2)
-
+    # best so far
     # lamda = 0.007
     # gamma1 = 0.005
     # gamma2 = 0.015
+
+    lamda = 0.0071
+    gamma1 = 0.05
+    gamma2 = 0.015
 
     # randomly initialize U, b_u, b_i, p_u, q_i.
     model = SVDPlusModel(latent_features_size=latent_features_size,
@@ -431,14 +436,18 @@ def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, ea
         temp_rmse, temp_rmsle = validation(model, validation_gen=load(valid_split_path))
         log_result = "Epoch #: {}, RMSE: {}, train_ACC: {}, valid_ACC: {} \n".format(curr_epoch,
                                                                                      temp_rmse, acc, temp_rmsle)
-        with open('log.txt', 'a+') as log_file:
+        model_name = "svd_plus_model_"+str(lamda)
+        with open("Results/log_"+model_name+".txt", 'a+') as log_file:
             log_file.write(log_result)
+        # save model
+        pickle.dump(model, open("Models/"+model_name+".pickle", "wb"))
 
         print(log_result)
         if early_stopping and (curr_rmse - temp_rmse) < 0.000001:  # if negative the model is becoming worse
             break
         curr_rmse = temp_rmse
         curr_epoch += 1
+
     return model, curr_rmse, curr_epoch
 
 
@@ -612,24 +621,27 @@ def TrainHybridModel(train_data_path, user_data_path, item_data_path, svd_model)
 
 
 if __name__ == '__main__':
+    start_time = time.time()
     # train_data_path = "Data/userTrainDataSmall.csv"
     train_data_path = "Data/userTrainData.csv"
     # model, curr_rmse, curr_epoch = TrainImprovedModel(latent_features_size=3,
     #                                                   train_data_path=train_data_path,
-    #                                                   max_ephocs=50,
+    #                                                   max_ephocs=30,
     #                                                   early_stopping=True)
-    model, curr_rmse, curr_epoch = TrainBaseModel(latent_features_size=3,
-                                                  train_data_path=train_data_path,
-                                                  max_ephocs=50,
-                                                  early_stopping=True)
-    pickle.dump(model, open("svd_model.pickle", "wb"))
+    # pickle.dump(model, open("Models/svd_plus_model.pickle", "wb"))
 
+    TrainBaseModel(latent_features_size=3,
+                   train_data_path=train_data_path,
+                   max_ephocs=50,
+                   early_stopping=True)
     # user_data = load('Data/yelp_user.csv')
     # item_data = load('Data/yelp_business.csv')
 
     # pre_process_for_content_model(user_data_path='Data/yelp_user.csv', item_data_path='Data/yelp_business.csv', reviews_data_path=train_data_path)
     # TrainContentModel(train_data_path=train_data_path, user_data_path='Data/yelp_user.csv', item_data_path='Data/yelp_business.csv')
 
-    # model = pickle.load(open("svd_plus_model.pickle", "rb"))
+    # model = pickle.load(open("Models/svd_plus_model_0.0071.pickle", "rb"))
     # TrainHybridModel(train_data_path=train_data_path, user_data_path='Data/yelp_user.csv',
     #                  item_data_path='Data/yelp_business.csv', svd_model=model)
+
+    print("computation time: %s minutes" % ((time.time() - start_time) / 60))
