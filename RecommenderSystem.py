@@ -39,7 +39,7 @@ def RMSE(true_ranks, predicted_ranks):
     Calculate the root mean square error for the ranking.
     :param true_ranks: actual ranking.
     :param predicted_ranks: the model predicted ranking.
-    :return:
+    :return: RMSE score
     """
     return mean_squared_error(true_ranks, predicted_ranks, squared=False)
 
@@ -60,18 +60,43 @@ def accuracyEval(true_ranks, predicted_ranks, threshold: float = 1.) -> float:
 
 
 def PredictRating(model, user_id, item_id):
+    """
+    Predict the rating for the input user and item
+    :param model: the model that predict the rating
+    :param user_id: the user id
+    :param item_id: the item id
+    :return: the predicted rating
+    """
     return model.predict(user_id, item_id)
 
 
 class ABSModelInterface(ABC):
+    """
+    Abstract class interface for all model to inherit.
+    """
     def predict(self, user_id, item_id):
+        """
+        Predict the rating for the input user and item
+        :param user_id: the user id
+        :param item_id: the item id
+        :return: the predicted rating
+        """
         pass
 
     def correction(self, error, user_id, item_id):
+        """
+        Perform correction for svd models.
+        :param error: error of predicted rank Vs true rank
+        :param user_id: the user id
+        :param item_id: the item id
+        """
         pass
 
 
 class BaseSVDModel(ABSModelInterface):
+    """
+    Base SVD model class.
+    """
     def __init__(self, latent_features_size, users_ids, items_ids, ranking_mean, lamda, gamma):
         self.error_threshold = 0.01
         self.latent_features_size = latent_features_size
@@ -128,6 +153,9 @@ class BaseSVDModel(ABSModelInterface):
 
 
 class SVDPlusModel(ABSModelInterface):
+    """
+    SVD plus model.
+    """
     def __init__(self, latent_features_size, users_ids, items_ids, ranking_mean, ru_dict, lamda, gamma1, gamma2):
         self.error_threshold = 0.01
         self.latent_features_size = latent_features_size
@@ -228,6 +256,13 @@ def get_unique_users_and_items(path_to_training):
 
 
 def split_and_save_train_validation(train_path, train_split_path, valid_split_path, validation_percent=0.2):
+    """
+    Split training into train and validation sets.
+    :param train_path: path to train file
+    :param train_split_path: path to write new train file
+    :param valid_split_path: path to write validation file
+    :param validation_percent: percent of validation set of all training examples.
+    """
     if os.path.exists(train_split_path) or os.path.exists(valid_split_path):
         os.remove(train_split_path)
         os.remove(valid_split_path)
@@ -314,28 +349,6 @@ def validation(model, validation_gen):
                                                                                             predicted_rankings)
 
 
-def train_base_model_grid_search(latent_features_size, train_data_path):
-    # (lamda, gamma)
-    # lamdas = np.arange(0.05, 0.1, 0.01)
-    # gammas = np.arange(0.05, 0.1, 0.01)
-
-    lamdas = [0.002]
-    gammas = [0.05]
-
-    params_to_test = list(zip(lamdas, gammas))
-    model_preformences = []
-    for idx, params in enumerate(params_to_test):
-        model_preformences.append(
-            TrainBaseModel(latent_features_size, train_data_path, lamda=params[0], gamma=params[1]))
-    with open('grid_search_res', 'w') as gsr_file:
-        for single_model_pref in model_preformences:
-            gsr_file.write("rmse: {}, last_epoch: {}, Gamma: {}, Lambda: {}\n".format(single_model_pref[1],
-                                                                                      single_model_pref[2],
-                                                                                      single_model_pref[0].gamma,
-                                                                                      single_model_pref[0].lamda))
-    print('hello')
-
-
 def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_stopping=True, lamda=0.002, gamma=0.05):
     """
     Implement of the basic model described in Recommender Systems Handbook, chapter 3, section 3.3
@@ -392,8 +405,8 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_
     return model, curr_rmse, curr_epoch
 
 
-def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, early_stopping=True, lamda=0.002,
-                       gamma1=0.05, gamma2=0.015):
+def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, early_stopping=True, lamda=0.007,
+                       gamma1=0.005, gamma2=0.015):
     """
     Train an improved model from the prev SVD model, by the paper in https://dl.acm.org/doi/pdf/10.1145/1401890.1401944.
     """
@@ -407,14 +420,6 @@ def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, ea
                                     train_split_path=train_split_path,
                                     valid_split_path=valid_split_path,
                                     validation_percent=0.2)
-    # best so far
-    # lamda = 0.007
-    # gamma1 = 0.005
-    # gamma2 = 0.015
-
-    lamda = 0.0071
-    gamma1 = 0.05
-    gamma2 = 0.015
 
     # randomly initialize U, b_u, b_i, p_u, q_i.
     model = SVDPlusModel(latent_features_size=latent_features_size,
@@ -452,6 +457,9 @@ def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, ea
 
 
 class ContentModel(ABSModelInterface):
+    """
+    Content model class.
+    """
     def __init__(self, items_hashmap, users_hashmap, model=RandomForestRegressor(n_estimators=10)):
         self.users_hashmap = users_hashmap
         self.items_hashmap = items_hashmap
@@ -476,6 +484,12 @@ class ContentModel(ABSModelInterface):
 
 
 def create_hashmaps(user_data_path, item_data_path):
+    """
+    Create and returns hash maps for user -> user features, and item -> item features.
+    :param user_data_path: path to user data file.
+    :param item_data_path: path to item data file.
+    :return: the created hash maps.
+    """
     le = preprocessing.LabelEncoder()
     scaler = preprocessing.MinMaxScaler()
 
@@ -509,7 +523,16 @@ def create_hashmaps(user_data_path, item_data_path):
 
 
 def pre_process_for_content_model(user_data_path, item_data_path, reviews_data_path, save_df=False):
-    print('started preprocessing for content model')  # todo: remove before submission
+    """
+    Perform pre processing for the content model which create user and item hash maps and also create the X and Y sets
+     for training.
+    :param user_data_path: path to user data file.
+    :param item_data_path: path to item data file.
+    :param reviews_data_path: path to reviews file
+    :param save_df: if true save the X and Y as a file.
+    :return: the hash maps and training sets.
+    """
+    print('started preprocessing for content model')
     users_to_features_hash, items_to_features_hash = create_hashmaps(user_data_path, item_data_path)
     # Reviews - concat review to user id and item id
     X_Y_true = list()
@@ -542,6 +565,13 @@ def pre_process_for_content_model(user_data_path, item_data_path, reviews_data_p
 
 
 def TrainContentModel(train_data_path, user_data_path, item_data_path):
+    """
+    Train and return the content model
+    :param train_data_path: path to train file
+    :param user_data_path: path to user data file.
+    :param item_data_path: path to item data file.
+    :return: the trained content model.
+    """
     X, Y, users_to_features_hash, items_to_features_hash = pre_process_for_content_model(user_data_path=user_data_path,
                                                                                          item_data_path=item_data_path,
                                                                                          reviews_data_path=train_data_path)
@@ -556,6 +586,9 @@ def TrainContentModel(train_data_path, user_data_path, item_data_path):
 
 
 class HybridModel(ContentModel):
+    """
+    Hybrid model class.
+    """
     def __init__(self, items_hashmap, users_hashmap, svd_model, model=RandomForestRegressor(n_estimators=10)):
         super().__init__(items_hashmap, users_hashmap, model)
         self.svd_model = svd_model
@@ -573,6 +606,16 @@ class HybridModel(ContentModel):
 
 
 def pre_process_for_Hybrid_model(user_data_path, item_data_path, reviews_data_path, svd_model, save_df=False):
+    """
+    Perform pre processing for the hybrid model which create user and item hash maps and also create the X and Y sets
+     for training.
+    :param user_data_path: path to user data file.
+    :param item_data_path: path to item data file.
+    :param reviews_data_path: path to reviews file
+    :param save_df: if true save the X and Y as a file.
+    :param svd_model: a trained svd model.
+    :return: the hash maps and training sets.
+    """
     print('started preprocessing for hybrid model')  # todo: remove before submission
     users_to_features_hash, items_to_features_hash = create_hashmaps(user_data_path, item_data_path)
     # Reviews - concat review to user id and item id
@@ -606,6 +649,15 @@ def pre_process_for_Hybrid_model(user_data_path, item_data_path, reviews_data_pa
 
 
 def TrainHybridModel(train_data_path, user_data_path, item_data_path, svd_model):
+    """
+
+    Train and return the hybrid model
+    :param train_data_path: path to train file
+    :param user_data_path: path to user data file.
+    :param item_data_path: path to item data file.
+    :param svd_model: a trained svd model.
+    :return: the trained content model.
+    """
     X, Y, users_to_features_hash, items_to_features_hash = pre_process_for_Hybrid_model(user_data_path=user_data_path,
                                                                                         item_data_path=item_data_path,
                                                                                         reviews_data_path=train_data_path,
@@ -626,7 +678,7 @@ def load_model(path_to_model: str) -> ABSModelInterface:
     :param path_to_model: str, absolute path to pickle file.
     return: ABSModelInterface class implementing object.
     """
-    model = pickle.load(open("svd_plus_model.pickle", "rb"))
+    model = pickle.load(open(path_to_model, "rb"))
     return model
 
 
@@ -638,19 +690,17 @@ if __name__ == '__main__':
     #                                                   train_data_path=train_data_path,
     #                                                   max_ephocs=30,
     #                                                   early_stopping=True)
-    # pickle.dump(model, open("Models/svd_plus_model.pickle", "wb"))
 
-    TrainBaseModel(latent_features_size=3,
-                   train_data_path=train_data_path,
-                   max_ephocs=50,
-                   early_stopping=True)
-    # user_data = load('Data/yelp_user.csv')
-    # item_data = load('Data/yelp_business.csv')
+    # TrainBaseModel(latent_features_size=3,
+    #                train_data_path=train_data_path,
+    #                max_ephocs=50,
+    #                early_stopping=True)
 
-    # pre_process_for_content_model(user_data_path='Data/yelp_user.csv', item_data_path='Data/yelp_business.csv', reviews_data_path=train_data_path)
-    # TrainContentModel(train_data_path=train_data_path, user_data_path='Data/yelp_user.csv', item_data_path='Data/yelp_business.csv')
+    TrainContentModel(train_data_path=train_data_path, user_data_path='Data/yelp_user.csv', item_data_path='Data/yelp_business.csv')
 
-    # model = pickle.load(open("Models/svd_plus_model_0.0071.pickle", "rb"))
+    # model = load_model('Models/svd_model_0.005.pickle')
+    # print(validation(model, validation_gen=load('Data/userTestData.csv')))
+
     # TrainHybridModel(train_data_path=train_data_path, user_data_path='Data/yelp_user.csv',
     #                  item_data_path='Data/yelp_business.csv', svd_model=model)
 
