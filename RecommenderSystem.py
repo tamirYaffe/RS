@@ -391,11 +391,11 @@ def TrainBaseModel(latent_features_size, train_data_path, max_ephocs=100, early_
 
         log_result = "Epoch #: {}, RMSE: {}, train_ACC: {}, valid_ACC: {} \n".format(curr_epoch,
                                                                                      temp_rmse, acc, temp_rmsle)
-        model_name = "svd_model_" + str(lamda)
-        with open("Results/log_" + model_name + ".txt", 'a+') as log_file:
-            log_file.write(log_result)
+        # model_name = "svd_model_" + str(lamda)
+        # with open("Results/log_" + model_name + ".txt", 'a+') as log_file:
+        #     log_file.write(log_result)
         # save model
-        pickle.dump(model, open("Models/" + model_name + ".pickle", "wb"))
+        # pickle.dump(model, open("Models/" + model_name + ".pickle", "wb"))
 
         print(log_result)
         if early_stopping and (curr_rmse - temp_rmse) < 0.000001:  # if negative the model is becoming worse
@@ -441,11 +441,11 @@ def TrainImprovedModel(latent_features_size, train_data_path, max_ephocs=100, ea
         temp_rmse, temp_rmsle = validation(model, validation_gen=load(valid_split_path))
         log_result = "Epoch #: {}, RMSE: {}, train_ACC: {}, valid_ACC: {} \n".format(curr_epoch,
                                                                                      temp_rmse, acc, temp_rmsle)
-        model_name = "svd_plus_model_"+str(lamda)
-        with open("Results/log_"+model_name+".txt", 'a+') as log_file:
-            log_file.write(log_result)
+        # model_name = "svd_plus_model_"+str(lamda)
+        # with open("Results/log_"+model_name+".txt", 'a+') as log_file:
+        #     log_file.write(log_result)
         # save model
-        pickle.dump(model, open("Models/"+model_name+".pickle", "wb"))
+        # pickle.dump(model, open("Models/"+model_name+".pickle", "wb"))
 
         print(log_result)
         if early_stopping and (curr_rmse - temp_rmse) < 0.000001:  # if negative the model is becoming worse
