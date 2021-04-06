@@ -328,7 +328,7 @@ def validation(model, validation_gen):
      finished.
     :return float, RMSE over validation set. uses implemented RMSE function.
     """
-    print('started validation')  # todo: remove before submission
+    print('started validation')
 
     single_record = next(validation_gen)
     predicted_rankings = []
@@ -344,7 +344,7 @@ def validation(model, validation_gen):
         except StopIteration:
             break
 
-    print('finished validation')  # todo: remove before submission
+    print('finished validation')
     return RMSE(true_ranks=true_rankings, predicted_ranks=predicted_rankings), accuracyEval(true_rankings,
                                                                                             predicted_rankings)
 
@@ -467,10 +467,10 @@ class ContentModel(ABSModelInterface):
         self.trained = False
 
     def train(self, x_train, y_train):
-        print('started training')  # todo: remove before submission
+        print('started training')
         self.model.fit(x_train, y_train)
         self.trained = True
-        print('finished training')  # todo: remove before submission
+        print('finished training')
 
     def predict(self, user_id, item_id):
         assert self.trained
@@ -558,7 +558,7 @@ def pre_process_for_content_model(user_data_path, item_data_path, reviews_data_p
                                            'Stars'])
     X = X_Y_true[:, :-1]
     Y = X_Y_true[:, -1]
-    print('finished preprocessing for content model')  # todo: remove before submission
+    print('finished preprocessing for content model')
     if save_df:
         new_feature_df.to_csv('content_df.csv')
     return X, Y, users_to_features_hash, items_to_features_hash
@@ -616,7 +616,7 @@ def pre_process_for_Hybrid_model(user_data_path, item_data_path, reviews_data_pa
     :param svd_model: a trained svd model.
     :return: the hash maps and training sets.
     """
-    print('started preprocessing for hybrid model')  # todo: remove before submission
+    print('started preprocessing for hybrid model')
     users_to_features_hash, items_to_features_hash = create_hashmaps(user_data_path, item_data_path)
     # Reviews - concat review to user id and item id
     X_Y_true = list()
@@ -642,7 +642,7 @@ def pre_process_for_Hybrid_model(user_data_path, item_data_path, reviews_data_pa
                                            'sf7', 'Stars'])
     X = X_Y_true[:, :-1]
     Y = X_Y_true[:, -1]
-    print('finished preprocessing for hybrid model')  # todo: remove before submission
+    print('finished preprocessing for hybrid model')
     if save_df:
         new_feature_df.to_csv('hybrid_df.csv')
     return X, Y, users_to_features_hash, items_to_features_hash
